@@ -1,0 +1,1 @@
+export interface Telemetry { drone_id: string; lat: number; lon: number; altitude_m: number; speed_mps: number; heading_deg: number; battery_percent: number; mode: string; armed: boolean; gps_status: string; link_state: string; mission_state: string; warnings: string[]; timestamp: string; }
