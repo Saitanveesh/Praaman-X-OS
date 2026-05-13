@@ -103,3 +103,24 @@ class GeofenceValidationRead(BaseModel):
     valid: bool
     errors: list[str]
     warnings: list[str]
+
+
+class MissionEventRead(BaseModel):
+    id: int
+    mission_id: str
+    drone_id: str
+    event_type: str
+    severity: str
+    message: str
+    timestamp: datetime
+    details: str | None = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class MissionSimulationStatusRead(BaseModel):
+    mission_id: str
+    state: str
+    active_waypoint_index: int = 0
+    waypoint_count: int = 0
+    message: str = ""

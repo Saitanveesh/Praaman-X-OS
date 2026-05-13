@@ -1,12 +1,14 @@
 from app.core.enums import C2ConnectionMode, MAVLinkBridgeStatus, VehicleType
 from app.models.bridge import C2ConnectionConfig, MAVLinkEndpoint
-from app.models.mission import GeofenceDraft, MapWaypoint, MissionDraft  # noqa: F401
+from app.models.mission import GeofenceDraft, MapWaypoint, MissionDraft, MissionEvent  # noqa: F401
 from app.services.connection_mode_service import ConnectionModeService
+from app.services.telemetry_source_service import TelemetrySourceService
 from app.db.session import Base, engine, SessionLocal
 from app.models.audit import AuditLog  # noqa: F401
 from app.models.command import Command  # noqa: F401
 from app.models.drone import Drone
 from app.models.telemetry import Telemetry  # noqa: F401
+from app.models.telemetry_source import TelemetrySourceConfig  # noqa: F401
 from app.models.vehicle_profile import VehicleProfile
 
 
@@ -57,4 +59,5 @@ def init_db() -> None:
             ))
         if not db.query(C2ConnectionConfig).first():
             ConnectionModeService().set_mode(db, C2ConnectionMode.SETUP_MODE)
+        TelemetrySourceService().ensure_defaults(db)
         db.commit()

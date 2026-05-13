@@ -3,9 +3,9 @@ from uuid import uuid4
 
 from sqlalchemy.orm import Session
 
-from app.core.enums import MissionDraftStatus, VehicleType, WaypointAction
+from app.core.enums import MissionDraftStatus, MissionEventType, VehicleType, WaypointAction
 from app.models.drone import Drone
-from app.models.mission import MapWaypoint, MissionDraft
+from app.models.mission import MapWaypoint, MissionDraft, MissionEvent
 from app.models.vehicle_profile import VehicleProfile
 from app.schemas.mission import MapWaypointCreate, MissionDraftCreate, MissionRouteSummary, MissionValidationRead
 
@@ -108,6 +108,14 @@ class MissionDraftService:
         warnings.append("Mission is draft/simulation-only and cannot be uploaded to flight hardware.")
 
         mission.status = MissionDraftStatus.INVALID.value if errors else MissionDraftStatus.VALIDATED.value
+        db.add(MissionEvent(
+            mission_id=mission_id,
+            drone_id=mission.drone_id,
+            event_type=MissionEventType.MISSION_INVALID.value if errors else MissionEventType.MISSION_VALIDATED.value,
+            severity="WARN" if errors else "INFO",
+            message="Mission draft validation failed." if errors else "Mission draft validation passed for simulation-only use.",
+            details="|".join(errors or warnings),
+        ))
         db.commit()
         return MissionValidationRead(
             mission_id=mission_id,

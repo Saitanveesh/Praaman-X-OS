@@ -14,3 +14,8 @@ export interface MapWaypointCreate { lat: number; lon: number; altitude_m?: numb
 export interface MissionRouteSummary { waypoint_count: number; estimated_distance_m: number; max_altitude_m: number; min_altitude_m: number; }
 export interface MissionValidation { mission_id: string; status: MissionDraftStatus; valid: boolean; warnings: string[]; errors: string[]; summary: MissionRouteSummary; }
 export interface GeofenceDraft { id: number; geofence_id: string; name: string; drone_id: string; enabled: boolean; polygon_json: string; max_altitude_m: number; min_altitude_m: number; created_at: string; updated_at: string; }
+export type TelemetrySource = 'MOCK' | 'MAVLINK_READ_ONLY' | 'PLAYBACK';
+export type TelemetrySourceStatus = 'ACTIVE' | 'INACTIVE' | 'CONNECTING' | 'ERROR';
+export interface TelemetrySourceConfig { id: number; source_type: TelemetrySource; status: TelemetrySourceStatus; name: string; host?: string | null; port?: number | null; protocol: string; read_only: boolean; last_error?: string | null; created_at: string; updated_at: string; }
+export interface MissionEvent { id: number; mission_id: string; drone_id: string; event_type: string; severity: string; message: string; timestamp: string; details?: string | null; }
+export interface MissionSimulationStatus { mission_id: string; state: 'IDLE' | 'RUNNING' | 'PAUSED' | 'COMPLETED' | 'ERROR'; active_waypoint_index: number; waypoint_count: number; message: string; }
