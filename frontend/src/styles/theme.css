@@ -1,0 +1,10 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root { color-scheme: dark; font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+body { margin: 0; background: #050608; color: #e5e7eb; }
+.panel { @apply border border-zinc-700 bg-zinc-950/80 rounded-sm; }
+.panel-title { @apply text-xs uppercase tracking-[0.18em] text-zinc-400; }
+.value { @apply text-xl font-semibold text-zinc-100; }
+.btn { @apply border border-zinc-600 px-3 py-2 text-sm uppercase tracking-wide text-zinc-100 hover:bg-zinc-800 disabled:opacity-50; }

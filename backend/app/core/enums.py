@@ -1,0 +1,53 @@
+from enum import StrEnum
+
+
+class VehicleType(StrEnum):
+    QUADCOPTER = "QUADCOPTER"
+    FIXED_WING = "FIXED_WING"
+
+
+class DroneState(StrEnum):
+    UNSEEN = "UNSEEN"
+    CONNECTED = "CONNECTED"
+    READY = "READY"
+    DEGRADED = "DEGRADED"
+    LOST_LINK = "LOST_LINK"
+    ERROR = "ERROR"
+
+
+class MissionState(StrEnum):
+    IDLE = "IDLE"
+    PLANNED = "PLANNED"
+    VALIDATED = "VALIDATED"
+    RUNNING = "RUNNING"
+    PAUSED = "PAUSED"
+    COMPLETED = "COMPLETED"
+    ABORTED = "ABORTED"
+
+
+class LinkState(StrEnum):
+    FULL_LINK = "FULL_LINK"
+    DEGRADED_LINK = "DEGRADED_LINK"
+    INTERMITTENT_LINK = "INTERMITTENT_LINK"
+    LOST_LINK = "LOST_LINK"
+    RECOVERED_LINK = "RECOVERED_LINK"
+
+
+class CommandType(StrEnum):
+    READ_STATUS = "READ_STATUS"
+    START_LOGGING = "START_LOGGING"
+    STOP_LOGGING = "STOP_LOGGING"
+    SIMULATE_RTL = "SIMULATE_RTL"
+    SIMULATE_LAND = "SIMULATE_LAND"
+
+
+class CommandStatus(StrEnum):
+    QUEUED = "QUEUED"
+    ACKNOWLEDGED = "ACKNOWLEDGED"
+    REJECTED = "REJECTED"
+
+
+class GovernanceDecision(StrEnum):
+    ALLOW = "ALLOW"
+    REJECT = "REJECT"
+    WARN_REQUIRE_CONFIRMATION = "WARN_REQUIRE_CONFIRMATION"
