@@ -2,8 +2,10 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
-from app.schemas.mission import MapWaypointCreate, MapWaypointRead, MissionDraftCreate, MissionDraftRead, MissionRouteSummary, MissionValidationRead
+from app.schemas.mission import MapWaypointCreate, MapWaypointRead, MissionDraftCreate, MissionDraftRead, MissionEventRead, MissionRouteSummary, MissionSimulationStatusRead, MissionValidationRead
+from app.models.mission import MissionEvent
 from app.services.mission_draft_service import MissionDraftService
+from app.services.mission_simulation_service import mission_simulation_service
 
 router = APIRouter(prefix="/api/missions", tags=["missions"])
 service = MissionDraftService()
@@ -56,3 +58,35 @@ def mission_summary(mission_id: str, db: Session = Depends(get_db)):
     if not result:
         raise HTTPException(status_code=404, detail="Mission draft not found")
     return result
+
+
+
+@router.get("/{mission_id}/events", response_model=list[MissionEventRead])
+def mission_events(mission_id: str, db: Session = Depends(get_db)):
+    if not service.get_mission(db, mission_id):
+        raise HTTPException(status_code=404, detail="Mission draft not found")
+    return db.query(MissionEvent).filter(MissionEvent.mission_id == mission_id).order_by(MissionEvent.timestamp.desc()).limit(100).all()[::-1]
+
+
+@router.post("/{mission_id}/simulate/start", response_model=MissionSimulationStatusRead)
+def start_simulation(mission_id: str, db: Session = Depends(get_db)):
+    result = mission_simulation_service.start_simulation(db, mission_id)
+    if not result:
+        raise HTTPException(status_code=404, detail="Mission draft not found")
+    return {"mission_id": result.mission_id, "state": result.state.value, "active_waypoint_index": result.active_waypoint_index, "waypoint_count": len(service.list_waypoints(db, mission_id)), "message": result.message}
+
+
+@router.post("/{mission_id}/simulate/stop", response_model=MissionSimulationStatusRead)
+def stop_simulation(mission_id: str, db: Session = Depends(get_db)):
+    result = mission_simulation_service.stop_simulation(db, mission_id)
+    if not result:
+        raise HTTPException(status_code=404, detail="Mission draft not found")
+    return {"mission_id": result.mission_id, "state": result.state.value, "active_waypoint_index": result.active_waypoint_index, "waypoint_count": len(service.list_waypoints(db, mission_id)), "message": result.message}
+
+
+@router.get("/{mission_id}/simulate/status", response_model=MissionSimulationStatusRead)
+def simulation_status(mission_id: str, db: Session = Depends(get_db)):
+    result = mission_simulation_service.get_simulation_status(db, mission_id)
+    if not result:
+        raise HTTPException(status_code=404, detail="Mission draft not found")
+    return {"mission_id": result.mission_id, "state": result.state.value, "active_waypoint_index": result.active_waypoint_index, "waypoint_count": len(service.list_waypoints(db, mission_id)), "message": result.message}

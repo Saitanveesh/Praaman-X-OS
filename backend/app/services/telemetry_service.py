@@ -15,6 +15,10 @@ class TelemetryService:
     def latest(self, db: Session, drone_id: str) -> Telemetry | None:
         return db.query(Telemetry).filter(Telemetry.drone_id == drone_id).order_by(Telemetry.timestamp.desc()).first()
 
+    def history(self, db: Session, drone_id: str, limit: int = 200) -> list[Telemetry]:
+        rows = db.query(Telemetry).filter(Telemetry.drone_id == drone_id).order_by(Telemetry.timestamp.desc()).limit(limit).all()
+        return list(reversed(rows))
+
     def save(self, db: Session, payload: dict) -> Telemetry:
         data = dict(payload)
         warnings = data.pop("warnings", [])

@@ -160,3 +160,59 @@ Stage 1.2 backend mission validation returns:
 Additional Stage 1.2 endpoint:
 
 - `GET /api/missions/{mission_id}/summary`
+
+## Stage 1.3: SITL-Ready Read-Only MAVLink + Telemetry Source Manager + Mission Simulation
+
+Stage 1.3 prepares Pramaan-X Intelligent C2 OS for future ArduPilot SITL/MAVLink telemetry ingestion while keeping the default app safe, read-only, and simulation-only.
+
+Safety boundary remains unchanged:
+
+- Default telemetry source is `MOCK` and remains active on startup.
+- The MAVLink provider is read-only and intended for future SITL/ArduPilot telemetry reading only.
+- No MAVLink command sending is enabled.
+- No `ARM`, `TAKEOFF`, `DISARM`, payload, mission upload, or real flight-controller command execution exists in Stage 1.3.
+- Mission drafts and mission simulations do not upload anything to hardware.
+- Mission simulation only moves mock telemetry for `PX-QD-001` along draft waypoints.
+
+Stage 1.3 adds:
+
+- Telemetry Source Manager with `MOCK`, `MAVLINK_READ_ONLY`, and `PLAYBACK` source records.
+- Seeded SITL placeholder: `ArduPilot SITL UDP Read-Only` at `127.0.0.1:14550` using `UDP` and `read_only: true`.
+- Graceful read-only MAVLink provider stub that reports missing `pymavlink` or connection failures without crashing the backend.
+- Recent telemetry history endpoint for map flight-track visualization.
+- Map/Mission flight track polyline from telemetry history.
+- Simulation-only mission runner for draft waypoints.
+- Mission event timeline for validation, source switching, MAVLink read-only errors, and simulation events.
+- Dashboard and Mission Planner Bridge telemetry source panels.
+
+New Stage 1.3 backend endpoints:
+
+- `GET /api/telemetry-sources`
+- `GET /api/telemetry-sources/active`
+- `POST /api/telemetry-sources/active`
+- `GET /api/telemetry/history/{drone_id}?limit=200`
+- `GET /api/mavlink-readonly/status`
+- `POST /api/mavlink-readonly/connect`
+- `POST /api/mavlink-readonly/disconnect`
+- `GET /api/missions/{mission_id}/events`
+- `POST /api/missions/{mission_id}/simulate/start`
+- `POST /api/missions/{mission_id}/simulate/stop`
+- `GET /api/missions/{mission_id}/simulate/status`
+
+### Future SITL / Mission Planner telemetry-sharing plan
+
+Mission Planner remains the calibration/setup tool. Pramaan-X OS remains the operational intelligence/C2 layer for supervision, governance, audit logs, mission simulation, and future secure integrations.
+
+A later SITL workflow can forward one telemetry stream to multiple consumers using MAVProxy or MAVLink Router so Mission Planner and Pramaan-X OS can observe the same vehicle state. Stage 1.3 only prepares the Pramaan-X read-only listener path.
+
+Documentation-only command examples for future operator setup:
+
+```bash
+mavproxy --master=COMx --out=127.0.0.1:14550
+```
+
+```bash
+mavproxy.py --out=127.0.0.1:14550
+```
+
+These examples are helper text only. They are not executed by Pramaan-X OS, and they do not enable command authority in this application.

@@ -51,3 +51,16 @@ class GeofenceDraft(Base):
     min_altitude_m: Mapped[float] = mapped_column(Float, default=0.0)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+
+
+class MissionEvent(Base):
+    __tablename__ = "mission_events"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    mission_id: Mapped[str] = mapped_column(String(64), index=True)
+    drone_id: Mapped[str] = mapped_column(String(64), index=True)
+    event_type: Mapped[str] = mapped_column(String(64), index=True)
+    severity: Mapped[str] = mapped_column(String(16), default="INFO")
+    message: Mapped[str] = mapped_column(String(512))
+    timestamp: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), index=True)
+    details: Mapped[str | None] = mapped_column(Text, nullable=True)

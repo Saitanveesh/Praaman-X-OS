@@ -4,9 +4,10 @@ import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { MapContainer, Marker, Polygon, Polyline, Popup, TileLayer, useMap } from 'react-leaflet';
 import { api } from '../api/client';
 import type { Drone } from '../types/drone';
-import type { GeofenceDraft, MapWaypoint, MissionDraft, MissionRouteSummary, MissionValidation, WaypointAction } from '../types/mission';
+import type { GeofenceDraft, MapWaypoint, MissionDraft, MissionEvent, MissionRouteSummary, MissionSimulationStatus, MissionValidation, TelemetrySourceConfig, WaypointAction } from '../types/mission';
 import type { VehicleProfile } from '../types/profile';
 import type { Telemetry } from '../types/telemetry';
+import TelemetrySourcePanel from '../components/TelemetrySourcePanel';
 
 const DEFAULT_CENTER = { lat: 12.9716, lon: 77.5946 };
 const actions: WaypointAction[] = ['NAVIGATE', 'LOITER', 'CAPTURE_IMAGE', 'START_RECORDING', 'STOP_RECORDING', 'RETURN_POINT'];
@@ -65,6 +66,10 @@ export default function MapMission({ drone, telemetry, profiles }: { drone?: Dro
   const [lostLinkAction, setLostLinkAction] = useState('HOLD_THEN_RTL');
   const [action, setAction] = useState<WaypointAction>('NAVIGATE');
   const [mapError, setMapError] = useState<string>();
+  const [history, setHistory] = useState<Telemetry[]>([]);
+  const [events, setEvents] = useState<MissionEvent[]>([]);
+  const [simulation, setSimulation] = useState<MissionSimulationStatus>();
+  const [activeSource, setActiveSource] = useState<TelemetrySourceConfig>();
 
   const selectedMission = missions.find((mission) => mission.mission_id === selectedMissionId);
   const profile = useMemo(() => profiles.find((item) => item.profile_id === drone?.profile_id), [profiles, drone?.profile_id]);
@@ -73,6 +78,7 @@ export default function MapMission({ drone, telemetry, profiles }: { drone?: Dro
   const center: LatLngExpression = [lat, lon];
   const homePoint: LatLngExpression = [DEFAULT_CENTER.lat, DEFAULT_CENTER.lon];
   const routePoints: LatLngExpression[] = waypoints.map((waypoint) => [waypoint.lat, waypoint.lon]);
+  const trackPoints: LatLngExpression[] = history.map((point) => [point.lat, point.lon]);
   const activeGeofence = geofences.find((geofence) => geofence.drone_id === (selectedMission?.drone_id ?? missionDroneId)) ?? geofences[0];
   const geofencePolygon = parseGeofencePolygon(activeGeofence);
   const frontendSummary = useMemo(() => {
@@ -127,8 +133,25 @@ export default function MapMission({ drone, telemetry, profiles }: { drone?: Dro
     }
     api.waypoints(selectedMissionId).then(setWaypoints);
     api.missionSummary(selectedMissionId).then(setSummary).catch(() => undefined);
+    api.missionEvents(selectedMissionId).then(setEvents).catch(() => undefined);
+    api.missionSimulationStatus(selectedMissionId).then(setSimulation).catch(() => undefined);
     setValidation(undefined);
   }, [selectedMissionId]);
+
+  useEffect(() => {
+    if (!drone?.drone_id) return;
+    api.telemetryHistory(drone.drone_id, 200).then(setHistory).catch(() => undefined);
+    api.activeTelemetrySource().then(setActiveSource).catch(() => undefined);
+    const timer = window.setInterval(() => {
+      api.telemetryHistory(drone.drone_id, 200).then(setHistory).catch(() => undefined);
+      api.activeTelemetrySource().then(setActiveSource).catch(() => undefined);
+      if (selectedMissionId) {
+        api.missionEvents(selectedMissionId).then(setEvents).catch(() => undefined);
+        api.missionSimulationStatus(selectedMissionId).then(setSimulation).catch(() => undefined);
+      }
+    }, 3000);
+    return () => window.clearInterval(timer);
+  }, [drone?.drone_id, selectedMissionId]);
 
   async function createMission(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -152,7 +175,20 @@ export default function MapMission({ drone, telemetry, profiles }: { drone?: Dro
     const result = await api.validateMission(selectedMissionId);
     setValidation(result);
     setSummary(result.summary);
+    setEvents(await api.missionEvents(selectedMissionId));
     await refreshMissions(selectedMissionId);
+  }
+
+  async function startSimulation() {
+    if (!selectedMissionId) return;
+    setSimulation(await api.startMissionSimulation(selectedMissionId));
+    setEvents(await api.missionEvents(selectedMissionId));
+  }
+
+  async function stopSimulation() {
+    if (!selectedMissionId) return;
+    setSimulation(await api.stopMissionSimulation(selectedMissionId));
+    setEvents(await api.missionEvents(selectedMissionId));
   }
 
   async function createDraftGeofence() {
@@ -178,17 +214,23 @@ export default function MapMission({ drone, telemetry, profiles }: { drone?: Dro
             <Marker position={homePoint} icon={homeIcon}><Popup>Home point / simulation origin<br />{DEFAULT_CENTER.lat.toFixed(6)}, {DEFAULT_CENTER.lon.toFixed(6)}</Popup></Marker>
             <Marker position={center} icon={droneIcon}><Popup>Live telemetry marker: {telemetry?.drone_id ?? 'PX-QD-001'}<br />{lat.toFixed(6)}, {lon.toFixed(6)}</Popup></Marker>
             {routePoints.length > 1 && <Polyline positions={routePoints} pathOptions={{ color: '#d4d4d8', weight: 2 }} />}
+            {trackPoints.length > 1 && <Polyline positions={trackPoints} pathOptions={{ color: '#60a5fa', weight: 2, dashArray: '4 4' }} />}
             {waypoints.map((waypoint) => <Marker key={waypoint.id} position={[waypoint.lat, waypoint.lon]} icon={waypointIcon(waypoint.sequence)}><Popup>WP {waypoint.sequence}: {waypoint.action}<br />{waypoint.altitude_m}m / {waypoint.speed_mps}mps</Popup></Marker>)}
             {geofencePolygon.length >= 3 && <Polygon positions={geofencePolygon} pathOptions={{ color: '#94a3b8', fillColor: '#64748b', fillOpacity: 0.12, weight: 1 }} />}
           </MapContainer> : <div className="flex h-full items-center justify-center p-6 text-center text-sm text-zinc-400">{mapError}<br />Drone marker fallback: {lat.toFixed(6)}, {lon.toFixed(6)}</div>}
         </div>
-        <p className="mt-3 text-sm text-zinc-400">Drone marker uses latest telemetry for PX-QD-001 when available. Home defaults to Bengaluru coordinates. Mission routes and geofences are planning previews only.</p>
+        <p className="mt-3 text-sm text-zinc-400">Drone marker uses latest telemetry for PX-QD-001 when available. Home defaults to Bengaluru coordinates. Mission routes are silver previews; live telemetry history tracks are dashed blue read-only paths.</p>
       </div>
       <div className="rounded border border-zinc-800 bg-zinc-950 p-4">
         <h3 className="text-sm font-semibold uppercase tracking-widest text-zinc-300">Vehicle / safety context</h3>
-        <div className="mt-3 space-y-2 text-sm text-zinc-400"><p>Drone: <span className="text-zinc-100">{drone?.drone_id ?? 'PX-QD-001 fallback'}</span></p><p>Vehicle type: <span className="text-zinc-100">{drone?.vehicle_type ?? 'QUADCOPTER fallback'}</span></p><p>Profile: <span className="text-zinc-100">{profile?.name ?? 'Not assigned'}</span></p><p>Telemetry: <span className="text-zinc-100">{telemetry ? 'live/mock stream active' : 'fallback coordinate active'}</span></p><p>No ARM, TAKEOFF, DISARM, mission upload, payload, or MAVLink hardware execution is available.</p></div>
+        <div className="mt-3 space-y-2 text-sm text-zinc-400"><p>Drone: <span className="text-zinc-100">{drone?.drone_id ?? 'PX-QD-001 fallback'}</span></p><p>Vehicle type: <span className="text-zinc-100">{drone?.vehicle_type ?? 'QUADCOPTER fallback'}</span></p><p>Profile: <span className="text-zinc-100">{profile?.name ?? 'Not assigned'}</span></p><p>Telemetry: <span className="text-zinc-100">{telemetry ? 'live/mock stream active' : 'fallback coordinate active'}</span></p><p>Source: <span className="text-zinc-100">{activeSource?.source_type ?? 'UNKNOWN'}</span></p><p>No ARM, TAKEOFF, DISARM, mission upload, payload, or MAVLink hardware execution is available.</p></div>
       </div>
     </section>
+
+    <section className="rounded border border-amber-700/60 bg-amber-950/20 p-4 text-sm text-amber-100">
+      Stage 1.3 is read-only and simulation-only. No real flight-controller commands are sent. Mission drafts and simulations do not upload to hardware.
+    </section>
+    <TelemetrySourcePanel compact />
 
     <section className="grid gap-4 xl:grid-cols-[1fr_1fr]">
       <div className="rounded border border-zinc-800 bg-zinc-950 p-4">
@@ -206,6 +248,32 @@ export default function MapMission({ drone, telemetry, profiles }: { drone?: Dro
     <section className="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
       <div className="rounded border border-zinc-800 bg-zinc-950 p-4"><div className="flex items-center justify-between"><h3 className="text-sm font-semibold uppercase tracking-widest text-zinc-300">Waypoint table</h3><button onClick={validateMission} disabled={!selectedMissionId} className="rounded border border-zinc-600 px-3 py-2 text-xs uppercase text-white">Validate mission</button></div><div className="mt-3 overflow-auto"><table className="w-full text-left text-xs"><thead className="text-zinc-500"><tr><th className="p-2">Seq</th><th className="p-2">Lat</th><th className="p-2">Lon</th><th className="p-2">Alt</th><th className="p-2">Speed</th><th className="p-2">Action</th><th className="p-2">Notes</th></tr></thead><tbody>{waypoints.map((waypoint) => <tr key={waypoint.id} className="border-t border-zinc-800"><td className="p-2 text-white">{waypoint.sequence}</td><td className="p-2">{waypoint.lat.toFixed(6)}</td><td className="p-2">{waypoint.lon.toFixed(6)}</td><td className="p-2">{waypoint.altitude_m}m</td><td className="p-2">{waypoint.speed_mps}mps</td><td className="p-2">{waypoint.action}</td><td className="p-2">{waypoint.notes}</td></tr>)}</tbody></table>{waypoints.length === 0 && <p className="p-3 text-sm text-zinc-500">No waypoint drafts added.</p>}</div></div>
       <div className="rounded border border-zinc-800 bg-zinc-950 p-4"><h3 className="text-sm font-semibold uppercase tracking-widest text-zinc-300">Route summary</h3><div className="mt-3 grid grid-cols-2 gap-2 text-sm"><p className="rounded border border-zinc-800 bg-black p-2">Waypoints<br /><span className="text-lg text-white">{frontendSummary.waypoint_count}</span></p><p className="rounded border border-zinc-800 bg-black p-2">Distance<br /><span className="text-lg text-white">{frontendSummary.estimated_distance_m.toFixed(1)} m</span></p><p className="rounded border border-zinc-800 bg-black p-2">Highest altitude<br /><span className="text-lg text-white">{frontendSummary.max_altitude_m} m</span></p><p className="rounded border border-zinc-800 bg-black p-2">Lowest altitude<br /><span className="text-lg text-white">{frontendSummary.min_altitude_m} m</span></p><p className="rounded border border-zinc-800 bg-black p-2">Vehicle<br /><span className="text-white">{selectedMission?.vehicle_type ?? vehicleType}</span></p><p className="rounded border border-zinc-800 bg-black p-2">Lost link<br /><span className="text-white">{selectedMission?.lost_link_action ?? lostLinkAction}</span></p></div><p className={`mt-3 text-sm ${validation?.valid ? 'text-emerald-300' : validation ? 'text-red-300' : 'text-zinc-400'}`}>Validation result: {validation ? `${validation.status} (${validation.valid ? 'valid' : 'invalid'})` : 'not run'}</p></div>
+    </section>
+
+    <section className="grid gap-4 xl:grid-cols-2">
+      <div className="rounded border border-zinc-800 bg-zinc-950 p-4">
+        <div className="flex items-center justify-between gap-3">
+          <h3 className="text-sm font-semibold uppercase tracking-widest text-zinc-300">Mission simulation controls</h3>
+          <span className="rounded border border-zinc-700 px-2 py-1 text-xs text-zinc-300">{simulation?.state ?? 'IDLE'}</span>
+        </div>
+        <p className="mt-2 text-sm text-zinc-400">Simulation moves mock telemetry along draft waypoints only. It does not upload missions or send MAVLink commands.</p>
+        <div className="mt-3 flex gap-2">
+          <button onClick={startSimulation} disabled={!selectedMissionId} className="rounded border border-zinc-600 px-3 py-2 text-xs uppercase text-white">Start Simulation</button>
+          <button onClick={stopSimulation} disabled={!selectedMissionId} className="rounded border border-zinc-600 px-3 py-2 text-xs uppercase text-white">Stop Simulation</button>
+        </div>
+        <p className="mt-2 text-xs text-zinc-500">{simulation?.message ?? 'Select a mission to view simulation status.'} Waypoint {simulation ? simulation.active_waypoint_index + 1 : 0} / {simulation?.waypoint_count ?? waypoints.length}</p>
+        <p className="mt-2 text-xs text-zinc-500">Flight track points loaded: {trackPoints.length}</p>
+      </div>
+      <div className="rounded border border-zinc-800 bg-zinc-950 p-4">
+        <h3 className="text-sm font-semibold uppercase tracking-widest text-zinc-300">Mission event timeline</h3>
+        <div className="mt-3 max-h-56 overflow-auto">
+          <table className="w-full text-left text-xs">
+            <thead className="text-zinc-500"><tr><th className="p-2">Time</th><th className="p-2">Event</th><th className="p-2">Severity</th><th className="p-2">Message</th></tr></thead>
+            <tbody>{events.map((event) => <tr key={event.id} className="border-t border-zinc-800"><td className="p-2">{new Date(event.timestamp).toLocaleTimeString()}</td><td className="p-2 text-white">{event.event_type}</td><td className="p-2">{event.severity}</td><td className="p-2 text-zinc-300">{event.message}</td></tr>)}</tbody>
+          </table>
+          {events.length === 0 && <p className="p-3 text-sm text-zinc-500">No mission events recorded.</p>}
+        </div>
+      </div>
     </section>
 
     <section className="grid gap-4 xl:grid-cols-2">
