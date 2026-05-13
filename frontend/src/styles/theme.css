@@ -8,3 +8,10 @@ body { margin: 0; background: #050608; color: #e5e7eb; }
 .panel-title { @apply text-xs uppercase tracking-[0.18em] text-zinc-400; }
 .value { @apply text-xl font-semibold text-zinc-100; }
 .btn { @apply border border-zinc-600 px-3 py-2 text-sm uppercase tracking-wide text-zinc-100 hover:bg-zinc-800 disabled:opacity-50; }
+.leaflet-container { background: #07090c; color: #e5e7eb; }
+.leaflet-control-attribution, .leaflet-control-zoom a { background: #09090b !important; color: #d4d4d8 !important; border-color: #3f3f46 !important; }
+.leaflet-popup-content-wrapper, .leaflet-popup-tip { background: #09090b; color: #e5e7eb; border: 1px solid #3f3f46; }
+.px-map-marker { display: grid; place-items: center; border: 1px solid #d4d4d8; background: #09090b; color: #f4f4f5; border-radius: 999px; font-size: 11px; font-weight: 700; box-shadow: 0 0 0 2px rgba(9,9,11,.65); }
+.px-map-marker-drone { border-color: #93c5fd; color: #bfdbfe; }
+.px-map-marker-home { border-color: #d4d4d8; color: #f4f4f5; }
+.px-map-marker-waypoint { border-color: #a1a1aa; color: #e5e7eb; }

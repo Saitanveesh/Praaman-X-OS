@@ -10,8 +10,8 @@ class MissionDraftCreate(BaseModel):
     name: str
     drone_id: str
     vehicle_type: VehicleType
-    default_altitude_m: float = 50.0
-    default_speed_mps: float = 8.0
+    default_altitude_m: float = 40.0
+    default_speed_mps: float = 6.0
     lost_link_action: str = "HOLD_THEN_RTL"
 
 
@@ -57,12 +57,20 @@ class MapWaypointRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class MissionRouteSummary(BaseModel):
+    waypoint_count: int = 0
+    estimated_distance_m: float = 0.0
+    max_altitude_m: float = 0.0
+    min_altitude_m: float = 0.0
+
+
 class MissionValidationRead(BaseModel):
     mission_id: str
     status: MissionDraftStatus
     valid: bool
-    errors: list[str]
     warnings: list[str]
+    errors: list[str]
+    summary: MissionRouteSummary
 
 
 class GeofenceDraftCreate(BaseModel):
