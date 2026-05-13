@@ -1,4 +1,7 @@
-from app.core.enums import VehicleType
+from app.core.enums import C2ConnectionMode, MAVLinkBridgeStatus, VehicleType
+from app.models.bridge import C2ConnectionConfig, MAVLinkEndpoint
+from app.models.mission import GeofenceDraft, MapWaypoint, MissionDraft  # noqa: F401
+from app.services.connection_mode_service import ConnectionModeService
 from app.db.session import Base, engine, SessionLocal
 from app.models.audit import AuditLog  # noqa: F401
 from app.models.command import Command  # noqa: F401
@@ -41,4 +44,17 @@ def init_db() -> None:
                 status="CONNECTED",
                 profile_id="quad-basic",
             ))
+
+        if not db.query(MAVLinkEndpoint).filter(MAVLinkEndpoint.endpoint_id == "mavlink-sim-placeholder").first():
+            db.add(MAVLinkEndpoint(
+                endpoint_id="mavlink-sim-placeholder",
+                name="Simulation MAVLink Bridge Placeholder",
+                host="127.0.0.1",
+                port=14550,
+                protocol="UDP",
+                status=MAVLinkBridgeStatus.SIMULATION_ONLY.value,
+                read_only=True,
+            ))
+        if not db.query(C2ConnectionConfig).first():
+            ConnectionModeService().set_mode(db, C2ConnectionMode.SETUP_MODE)
         db.commit()

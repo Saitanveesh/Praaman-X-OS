@@ -81,3 +81,39 @@ npm run build
 - `backend/app/plugins/pufshield_security_stub.py` is a Stage 2 placeholder and currently reports `pufshield_connected: false`.
 - `backend/app/plugins/mavlink_adapter_stub.py` is a future integration placeholder and is not connected to real vehicles.
 - Mock telemetry starts automatically with the FastAPI lifespan and emits one sample every second.
+
+## Stage 1.1: Mission Planner Compatibility + Map/Mission Foundation
+
+Stage 1.1 adds compatibility structure for using Mission Planner as the engineering setup/calibration tool while Pramaan-X Intelligent C2 OS remains the operational C2 and intelligence layer.
+
+Mission Planner remains responsible for firmware flashing, frame setup, accelerometer/compass/radio calibration, ESC and motor testing, parameter setup, and basic tuning. Pramaan-X OS is responsible for mission supervision, telemetry intelligence, vehicle profiles, command governance, audit logging, later cloud/tactical C2, and future PUFShield integration.
+
+This stage is still simulation-only:
+
+- The Mission Planner Bridge and MAVLink Bridge are placeholders for read-only telemetry compatibility.
+- No real MAVLink command execution is enabled.
+- Hardware command execution remains disabled in every C2 connection mode.
+- Mission drafts, waypoint drafts, and geofence drafts are draft/simulation-only records.
+- Map/Mission UI is a foundation panel with a drone marker placeholder based on latest telemetry latitude/longitude.
+- Future integration can use a MAVLink router or MAVProxy so Mission Planner and Pramaan-X OS can receive the same telemetry stream while command governance and authority separation remain explicit.
+
+New Stage 1.1 backend endpoints:
+
+- `GET /api/bridge/status`
+- `GET /api/bridge/endpoints`
+- `POST /api/bridge/endpoints`
+- `GET /api/connection-mode`
+- `POST /api/connection-mode`
+- `GET /api/missions`
+- `POST /api/missions`
+- `GET /api/missions/{mission_id}`
+- `POST /api/missions/{mission_id}/waypoints`
+- `GET /api/missions/{mission_id}/waypoints`
+- `POST /api/missions/{mission_id}/validate`
+- `GET /api/geofences`
+- `POST /api/geofences`
+
+New Stage 1.1 frontend pages:
+
+- `MISSION PLANNER BRIDGE` for setup/operations authority separation, read-only MAVLink Bridge status, and future secure mode placeholders.
+- `MAP / MISSION` for map foundation, current simulated position, mission draft creation, waypoint draft creation, mission validation, and geofence placeholders.
