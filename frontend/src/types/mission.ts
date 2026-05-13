@@ -11,5 +11,6 @@ export interface MissionDraft { id: number; mission_id: string; name: string; dr
 export interface MissionDraftCreate { name: string; drone_id: string; vehicle_type: 'QUADCOPTER' | 'FIXED_WING'; default_altitude_m: number; default_speed_mps: number; lost_link_action: string; }
 export interface MapWaypoint { id: number; mission_id: string; sequence: number; lat: number; lon: number; altitude_m: number; speed_mps: number; action: WaypointAction; loiter_seconds?: number | null; notes?: string | null; }
 export interface MapWaypointCreate { lat: number; lon: number; altitude_m?: number; speed_mps?: number; action: WaypointAction; loiter_seconds?: number | null; notes?: string | null; }
-export interface MissionValidation { mission_id: string; status: MissionDraftStatus; valid: boolean; errors: string[]; warnings: string[]; }
+export interface MissionRouteSummary { waypoint_count: number; estimated_distance_m: number; max_altitude_m: number; min_altitude_m: number; }
+export interface MissionValidation { mission_id: string; status: MissionDraftStatus; valid: boolean; warnings: string[]; errors: string[]; summary: MissionRouteSummary; }
 export interface GeofenceDraft { id: number; geofence_id: string; name: string; drone_id: string; enabled: boolean; polygon_json: string; max_altitude_m: number; min_altitude_m: number; created_at: string; updated_at: string; }

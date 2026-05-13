@@ -117,3 +117,46 @@ New Stage 1.1 frontend pages:
 
 - `MISSION PLANNER BRIDGE` for setup/operations authority separation, read-only MAVLink Bridge status, and future secure mode placeholders.
 - `MAP / MISSION` for map foundation, current simulated position, mission draft creation, waypoint draft creation, mission validation, and geofence placeholders.
+
+## Stage 1.2: Real Map + Mission Draft Improvement
+
+Stage 1.2 improves the `MAP / MISSION` page into a usable simulation mission planning screen while preserving the Stage 1 safety boundary.
+
+This stage remains simulation-only:
+
+- The map is an operational planning preview only and uses mock/latest telemetry for the live `PX-QD-001` marker.
+- Mission drafts are planning records and are not uploaded to drone hardware.
+- Waypoints are planning objects only; route lines and waypoint markers do not command a flight controller.
+- Geofences are draft visualizations only. Stage 1.2 performs no hardware geofence enforcement.
+- Mission Planner remains the calibration/setup tool for firmware, frame setup, sensors, radio, ESC/motor testing, parameters, and tuning.
+- Future stages will connect SITL MAVLink read-only telemetry while preserving command governance and no-hardware-command defaults.
+
+Stage 1.2 adds:
+
+- Leaflet/react-leaflet map preview with live drone marker, home marker, waypoint markers, route polyline, and geofence polygon preview.
+- Expanded mission draft creation fields for drone ID, vehicle type, default altitude, default speed, and lost-link action.
+- Expanded waypoint drafts with altitude, speed, action, loiter seconds, notes, and a compact waypoint table.
+- Structured mission validation with warnings, errors, and route summary data.
+- Approximate route distance calculation with the Haversine formula.
+- Route summary and validation warning panels in the frontend.
+
+Stage 1.2 backend mission validation returns:
+
+```json
+{
+  "mission_id": "string",
+  "status": "VALIDATED or INVALID",
+  "warnings": [],
+  "errors": [],
+  "summary": {
+    "waypoint_count": 0,
+    "estimated_distance_m": 0,
+    "max_altitude_m": 0,
+    "min_altitude_m": 0
+  }
+}
+```
+
+Additional Stage 1.2 endpoint:
+
+- `GET /api/missions/{mission_id}/summary`

@@ -3,7 +3,7 @@ import type { Command, CommandType } from '../types/command';
 import type { Drone } from '../types/drone';
 import type { Telemetry } from '../types/telemetry';
 import type { VehicleProfile } from '../types/profile';
-import type { BridgeStatus, C2ConnectionConfig, GeofenceDraft, MapWaypoint, MapWaypointCreate, MAVLinkEndpoint, MissionDraft, MissionDraftCreate, MissionValidation } from '../types/mission';
+import type { BridgeStatus, C2ConnectionConfig, GeofenceDraft, MapWaypoint, MapWaypointCreate, MAVLinkEndpoint, MissionDraft, MissionDraftCreate, MissionRouteSummary, MissionValidation } from '../types/mission';
 
 const API_BASE = import.meta.env.VITE_API_BASE ?? 'http://localhost:8000';
 
@@ -37,6 +37,8 @@ export const api = {
   waypoints: (missionId: string) => getJson<MapWaypoint[]>(`/api/missions/${missionId}/waypoints`),
   addWaypoint: (missionId: string, waypoint: MapWaypointCreate) => postJson<MapWaypoint>(`/api/missions/${missionId}/waypoints`, waypoint),
   validateMission: (missionId: string) => postJson<MissionValidation>(`/api/missions/${missionId}/validate`, {}),
+  missionSummary: (missionId: string) => getJson<MissionRouteSummary>(`/api/missions/${missionId}/summary`),
+  createGeofence: (geofence: Omit<GeofenceDraft, 'id' | 'geofence_id' | 'created_at' | 'updated_at'> & { geofence_id?: string }) => postJson<GeofenceDraft>('/api/geofences', geofence),
   geofences: () => getJson<GeofenceDraft[]>('/api/geofences'),
   sendCommand: async (drone_id: string, command_type: CommandType, operator_id = 'operator-demo') => {
     const response = await fetch(`${API_BASE}/api/commands`, {

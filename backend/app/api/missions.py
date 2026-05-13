@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
-from app.schemas.mission import MapWaypointCreate, MapWaypointRead, MissionDraftCreate, MissionDraftRead, MissionValidationRead
+from app.schemas.mission import MapWaypointCreate, MapWaypointRead, MissionDraftCreate, MissionDraftRead, MissionRouteSummary, MissionValidationRead
 from app.services.mission_draft_service import MissionDraftService
 
 router = APIRouter(prefix="/api/missions", tags=["missions"])
@@ -45,6 +45,14 @@ def list_waypoints(mission_id: str, db: Session = Depends(get_db)):
 @router.post("/{mission_id}/validate", response_model=MissionValidationRead)
 def validate_mission(mission_id: str, db: Session = Depends(get_db)):
     result = service.validate_mission(db, mission_id)
+    if not result:
+        raise HTTPException(status_code=404, detail="Mission draft not found")
+    return result
+
+
+@router.get("/{mission_id}/summary", response_model=MissionRouteSummary)
+def mission_summary(mission_id: str, db: Session = Depends(get_db)):
+    result = service.summarize_route(db, mission_id)
     if not result:
         raise HTTPException(status_code=404, detail="Mission draft not found")
     return result
