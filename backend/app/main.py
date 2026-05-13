@@ -4,7 +4,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import audit, commands, drones, profiles, telemetry, websocket
+from app.api import audit, bridge, commands, connection_mode, drones, geofences, missions, profiles, telemetry, websocket
 from app.core.config import settings
 from app.db.init_db import init_db
 from app.db.session import SessionLocal
@@ -44,6 +44,10 @@ app.include_router(profiles.router)
 app.include_router(telemetry.router)
 app.include_router(commands.router)
 app.include_router(audit.router)
+app.include_router(geofences.router)
+app.include_router(missions.router)
+app.include_router(connection_mode.router)
+app.include_router(bridge.router)
 app.include_router(websocket.router)
 
 

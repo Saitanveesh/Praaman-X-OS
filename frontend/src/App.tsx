@@ -3,8 +3,10 @@ import { api } from './api/client';
 import { connectTelemetry } from './api/websocket';
 import Layout from './components/Layout';
 import Audit from './pages/Audit';
+import Bridge from './pages/Bridge';
 import Commands from './pages/Commands';
 import Dashboard from './pages/Dashboard';
+import MapMission from './pages/MapMission';
 import Drones from './pages/Drones';
 import Profiles from './pages/Profiles';
 import type { AuditLog } from './types/audit';
@@ -38,6 +40,8 @@ export default function App() {
   if (page === 'commands') content = primaryDrone ? <Commands droneId={primaryDrone.drone_id} lastCommand={lastCommand} onCommand={handleCommand} /> : <div>No drone registered.</div>;
   if (page === 'audit') content = <Audit logs={audit} />;
   if (page === 'profiles') content = <Profiles profiles={profiles} />;
+  if (page === 'bridge') content = <Bridge />;
+  if (page === 'map-mission') content = <MapMission drone={primaryDrone} telemetry={telemetry} profiles={profiles} />;
 
   return <Layout page={page} setPage={setPage}>{content}</Layout>;
 }

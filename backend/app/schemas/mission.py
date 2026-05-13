@@ -1,0 +1,97 @@
+from datetime import datetime
+
+from pydantic import BaseModel, ConfigDict
+
+from app.core.enums import MissionDraftStatus, VehicleType, WaypointAction
+
+
+class MissionDraftCreate(BaseModel):
+    mission_id: str | None = None
+    name: str
+    drone_id: str
+    vehicle_type: VehicleType
+    default_altitude_m: float = 50.0
+    default_speed_mps: float = 8.0
+    lost_link_action: str = "HOLD_THEN_RTL"
+
+
+class MissionDraftRead(BaseModel):
+    id: int
+    mission_id: str
+    name: str
+    drone_id: str
+    vehicle_type: VehicleType
+    status: MissionDraftStatus
+    default_altitude_m: float
+    default_speed_mps: float
+    lost_link_action: str
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class MapWaypointCreate(BaseModel):
+    sequence: int | None = None
+    lat: float
+    lon: float
+    altitude_m: float | None = None
+    speed_mps: float | None = None
+    action: WaypointAction = WaypointAction.NAVIGATE
+    loiter_seconds: int | None = None
+    notes: str | None = None
+
+
+class MapWaypointRead(BaseModel):
+    id: int
+    mission_id: str
+    sequence: int
+    lat: float
+    lon: float
+    altitude_m: float
+    speed_mps: float
+    action: WaypointAction
+    loiter_seconds: int | None = None
+    notes: str | None = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class MissionValidationRead(BaseModel):
+    mission_id: str
+    status: MissionDraftStatus
+    valid: bool
+    errors: list[str]
+    warnings: list[str]
+
+
+class GeofenceDraftCreate(BaseModel):
+    geofence_id: str | None = None
+    name: str
+    drone_id: str
+    enabled: bool = True
+    polygon_json: str = "[]"
+    max_altitude_m: float = 120.0
+    min_altitude_m: float = 0.0
+
+
+class GeofenceDraftRead(BaseModel):
+    id: int
+    geofence_id: str
+    name: str
+    drone_id: str
+    enabled: bool
+    polygon_json: str
+    max_altitude_m: float
+    min_altitude_m: float
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class GeofenceValidationRead(BaseModel):
+    geofence_id: str
+    valid: bool
+    errors: list[str]
+    warnings: list[str]
