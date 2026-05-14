@@ -349,3 +349,43 @@ mavproxy.py --master=udp:127.0.0.1:14550 --out=127.0.0.1:14551
 These commands are not run by Pramaan-X OS. They are setup examples only and do not grant Pramaan-X OS command authority.
 
 Safety verification: no real MAVLink command sending implemented.
+
+## Stage 2 Complete: SITL MAVLink Read-Only Integration
+
+Pramaan-X Intelligent C2 OS now supports a Stage 2 UDP MAVLink read-only path for ArduPilot SITL, MAVProxy, and MAVLink Router telemetry streams. The MAVLink provider listens only, normalizes Stage 2 UDP receive endpoints to `udpin:127.0.0.1:14550`, parses common telemetry messages, and maps partial telemetry safely into the existing dashboard, map, telemetry history, telemetry intelligence, link intelligence, and audit paths.
+
+### Stage 2 Usage
+
+1. Start backend.
+2. Start frontend.
+3. Start ArduPilot SITL externally.
+4. Configure SITL/MAVProxy to output UDP MAVLink to `127.0.0.1:14550`.
+5. Open Mission Planner Bridge.
+6. Connect Read-Only MAVLink.
+7. Switch source to `MAVLINK_READ_ONLY`.
+8. Verify Dashboard updates from the MAVLink stream.
+
+Stage 2 safety boundaries remain enforced:
+
+- No MAVLink command sending.
+- No mission upload.
+- No parameter writing.
+- No mode change.
+- No arming, takeoff, landing, or RTL execution to hardware.
+- UDP is supported for Stage 2; TCP is disabled/placeholder; serial is reserved for future bench read-only work.
+
+Mission Planner should remain the setup, calibration, and parameter tuning tool. Pramaan-X OS is the read-only telemetry intelligence, mission supervision, audit, and future secure C2 layer. Only one system should hold command authority at a time; in Stage 2, Pramaan-X OS has no hardware command authority.
+
+## Stage 3 Readiness: Pixhawk Bench Read-Only Path
+
+Stage 3 readiness adds a safe Pixhawk bench checklist, a Bench Readiness UI page, a read-only backend readiness endpoint, and connection profiles for SITL UDP, MAVProxy UDP, Pixhawk serial placeholder, and playback placeholder. This is readiness structure only; it does not perform physical validation and does not enable control of a flight controller.
+
+### Stage 3 Readiness
+
+1. Remove propellers.
+2. Use Mission Planner for Pixhawk calibration/setup.
+3. Keep Pramaan-X OS read-only.
+4. Use future serial/UDP telemetry only.
+5. Do not send commands from Pramaan-X OS.
+
+Stage 3 physical bench validation is not performed by this codebase automatically. It must be done manually and safely with propellers removed.

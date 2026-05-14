@@ -11,7 +11,7 @@ export default function TelemetryPanel({ drone, telemetry }: { drone?: Drone; te
     <StatusCard label="GPS Position" value={telemetry ? `${telemetry.lat.toFixed(5)}, ${telemetry.lon.toFixed(5)}` : '—'} />
     <StatusCard label="Altitude" value={telemetry ? `${telemetry.altitude_m} m` : '—'} />
     <StatusCard label="Speed" value={telemetry ? `${telemetry.speed_mps} m/s` : '—'} />
-    <StatusCard label="Battery" value={telemetry ? `${telemetry.battery_percent}%` : '—'} />
+    <StatusCard label="Battery" value={telemetry ? (telemetry.battery_percent == null ? 'UNKNOWN' : `${telemetry.battery_percent}%`) : '—'} />
     <StatusCard label="Link State" value={telemetry?.link_state} />
     <StatusCard label="Mission State" value={telemetry?.mission_state} />
     <StatusCard label="GPS Status" value={telemetry?.gps_status} />

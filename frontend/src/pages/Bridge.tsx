@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api/client';
 import TelemetrySourcePanel from '../components/TelemetrySourcePanel';
-import type { BridgeStatus, C2ConnectionConfig, C2ConnectionMode, MAVLinkEndpoint, MAVLinkReadonlyStatus } from '../types/mission';
+import type { BridgeStatus, C2ConnectionConfig, C2ConnectionMode, ConnectionProfile, MAVLinkEndpoint, MAVLinkReadonlyStatus } from '../types/mission';
 
 const modes: C2ConnectionMode[] = ['SETUP_MODE', 'OPS_MONITOR_MODE', 'PRAMAAN_CONTROL_MODE', 'FUTURE_SECURE_CONTROL_MODE'];
 
@@ -9,6 +9,8 @@ export default function Bridge() {
   const [status, setStatus] = useState<BridgeStatus>();
   const [mode, setMode] = useState<C2ConnectionConfig>();
   const [endpoints, setEndpoints] = useState<MAVLinkEndpoint[]>([]);
+  const [profiles, setProfiles] = useState<ConnectionProfile[]>([]);
+  const [activeSource, setActiveSource] = useState<string>('MOCK');
   const [mavlinkStatus, setMavlinkStatus] = useState<MAVLinkReadonlyStatus>();
   const [host, setHost] = useState('127.0.0.1');
   const [port, setPort] = useState(14550);
@@ -16,11 +18,13 @@ export default function Bridge() {
   const [mavlinkMessage, setMavlinkMessage] = useState('');
 
   async function refresh() {
-    const [bridgeStatus, connectionMode, bridgeEndpoints, readonlyStatus] = await Promise.all([api.bridgeStatus(), api.connectionMode(), api.bridgeEndpoints(), api.mavlinkReadonlyStatus()]);
+    const [bridgeStatus, connectionMode, bridgeEndpoints, readonlyStatus, connectionProfiles, activeTelemetrySource] = await Promise.all([api.bridgeStatus(), api.connectionMode(), api.bridgeEndpoints(), api.mavlinkReadonlyDiagnostics(), api.connectionProfiles(), api.activeTelemetrySource()]);
     setStatus(bridgeStatus);
     setMode(connectionMode);
     setEndpoints(bridgeEndpoints);
     setMavlinkStatus(readonlyStatus);
+    setProfiles(connectionProfiles);
+    setActiveSource(activeTelemetrySource.active_source ?? activeTelemetrySource.source_type);
     setHost(readonlyStatus.host ?? '127.0.0.1');
     setPort(readonlyStatus.port ?? 14550);
     setProtocol(readonlyStatus.protocol ?? 'UDP');
@@ -45,13 +49,22 @@ export default function Bridge() {
   }
 
   async function useSource(source: 'MOCK' | 'MAVLINK_READ_ONLY') {
-    await api.setTelemetrySource(source);
+    const result = await api.setTelemetrySource(source);
+    setMavlinkMessage(result.message ?? 'Telemetry source updated.');
     await refresh();
+  }
+
+  function applyProfile(profileId: string) {
+    const profile = profiles.find((item) => item.profile_id === profileId);
+    if (!profile) return;
+    setHost(profile.host ?? '127.0.0.1');
+    setPort(profile.port ?? 14550);
+    setProtocol(profile.protocol);
   }
 
   return <div className="space-y-4 text-zinc-200">
     <section className="rounded border border-amber-700/60 bg-amber-950/20 p-4 text-sm text-amber-100">
-      Stage 1.4–1.6 is read-only and simulation-only. No real flight-controller commands are sent. Mission drafts and simulations do not upload to hardware.
+      Read-only mode. Pramaan-X OS does not send MAVLink commands in Stage 2.
     </section>
     <TelemetrySourcePanel />
 
@@ -61,20 +74,24 @@ export default function Bridge() {
         <div><p className="text-xs uppercase tracking-[0.25em] text-zinc-500">MAVLink Read-Only Connection</p><h3 className="mt-1 text-lg font-semibold text-white">SITL / MAVProxy UDP listener</h3></div>
         <span className="rounded border border-zinc-700 px-2 py-1 text-xs uppercase text-zinc-300">{mavlinkStatus?.connected ? 'CONNECTED' : 'DISCONNECTED'}</span>
       </div>
-      <div className="mt-4 grid gap-3 md:grid-cols-3">
+      <div className="mt-4 grid gap-3 md:grid-cols-4">
+        <label className="text-xs uppercase tracking-widest text-zinc-500">Profile<select onChange={(event) => applyProfile(event.target.value)} defaultValue="" className="mt-1 w-full rounded border border-zinc-700 bg-black px-3 py-2 text-sm text-white"><option value="" disabled>Select profile</option>{profiles.map((profile) => <option key={profile.profile_id} value={profile.profile_id}>{profile.name}</option>)}</select></label>
         <label className="text-xs uppercase tracking-widest text-zinc-500">Host<input value={host} onChange={(event) => setHost(event.target.value)} className="mt-1 w-full rounded border border-zinc-700 bg-black px-3 py-2 text-sm text-white" /></label>
         <label className="text-xs uppercase tracking-widest text-zinc-500">Port<input type="number" value={port} onChange={(event) => setPort(Number(event.target.value))} className="mt-1 w-full rounded border border-zinc-700 bg-black px-3 py-2 text-sm text-white" /></label>
-        <label className="text-xs uppercase tracking-widest text-zinc-500">Protocol<select value={protocol} onChange={(event) => setProtocol(event.target.value)} className="mt-1 w-full rounded border border-zinc-700 bg-black px-3 py-2 text-sm text-white"><option>UDP</option><option>TCP</option><option>SERIAL</option></select></label>
+        <label className="text-xs uppercase tracking-widest text-zinc-500">Protocol<select value={protocol} onChange={(event) => setProtocol(event.target.value)} className="mt-1 w-full rounded border border-zinc-700 bg-black px-3 py-2 text-sm text-white"><option value="UDP">UDP - Supported for Stage 2</option><option value="TCP" disabled>TCP - Disabled / Placeholder</option><option value="SERIAL" disabled>SERIAL - Stage 3 Bench Placeholder</option></select></label>
       </div>
       <div className="mt-4 flex flex-wrap gap-2">
         <button onClick={connectMavlinkReadonly} className="rounded border border-zinc-600 px-3 py-2 text-xs uppercase text-white">Connect MAVLink Read-Only</button>
         <button onClick={disconnectMavlinkReadonly} className="rounded border border-zinc-600 px-3 py-2 text-xs uppercase text-white">Disconnect</button>
         <button onClick={() => useSource('MAVLINK_READ_ONLY')} className="rounded border border-zinc-600 px-3 py-2 text-xs uppercase text-white">Use MAVLink Read-Only Source</button>
         <button onClick={() => useSource('MOCK')} className="rounded border border-zinc-600 px-3 py-2 text-xs uppercase text-white">Use Mock Source</button>
+        <button onClick={refresh} className="rounded border border-zinc-600 px-3 py-2 text-xs uppercase text-white">Refresh Diagnostics</button>
       </div>
       <div className="mt-4 grid gap-2 text-xs text-zinc-400 md:grid-cols-2">
+        <p>Active telemetry source: <span className="text-zinc-100">{activeSource}</span></p>
         <p>Read-only enforced: <span className="text-zinc-100">{mavlinkStatus?.read_only ? 'true' : 'true'}</span></p>
-        <p>Command sending enabled: <span className="text-zinc-100">{mavlinkStatus?.commands_enabled ? 'true' : 'false'}</span></p>
+        <p>Command sending enabled: <span className="text-zinc-100">false</span></p>
+        <p>Mission upload enabled: <span className="text-zinc-100">false</span></p>
         <p>Endpoint: <span className="text-zinc-100">{mavlinkStatus?.endpoint ?? 'udpin:127.0.0.1:14550'}</span></p>
         <p>Last MAVLink message: <span className="text-zinc-100">{mavlinkStatus?.last_message_time ?? 'none'}</span></p>
         <p className="md:col-span-2">Parsed message counts: <span className="text-zinc-100">{mavlinkStatus ? Object.entries(mavlinkStatus.message_counts).map(([key, value]) => `${key}:${value}`).join(' / ') : 'none'}</span></p>
@@ -84,7 +101,7 @@ export default function Bridge() {
     <section className="rounded border border-zinc-800 bg-zinc-950 p-4">
       <p className="text-xs uppercase tracking-[0.25em] text-zinc-500">Mission Planner Bridge</p>
       <h2 className="mt-2 text-xl font-semibold text-white">Compatibility and authority separation</h2>
-      <p className="mt-3 max-w-3xl text-sm text-zinc-400">Mission Planner remains the firmware flashing, frame setup, calibration, motor/ESC test, parameter, and failsafe setup tool. Pramaan-X OS is the intelligent operational C2/supervision layer for telemetry intelligence, command governance, audit logging, vehicle profiles, mission drafts, and future secure C2 integration.</p>
+      <p className="mt-3 max-w-3xl text-sm text-zinc-400">Mission Planner = setup, calibration, parameter tuning. Pramaan-X OS = telemetry intelligence, mission supervision, audit, future secure C2. Only one system should hold command authority at a time. In Stage 2, Pramaan-X OS has no hardware command authority.</p>
     </section>
     <div className="grid gap-4 lg:grid-cols-3">
       <Status label="Current C2 connection mode" value={mode?.mode ?? 'LOADING'} />
@@ -106,7 +123,7 @@ export default function Bridge() {
       <div className="mt-3 space-y-2 text-sm text-zinc-400">
         <p>Mission Planner remains the calibration/setup tool.</p>
         <p>Pramaan-X OS can later read the same MAVLink stream through MAVProxy or MAVLink Router.</p>
-        <p>Stage 1.4–1.6 prepares read-only telemetry support, mission replay, and intelligence panels. No MAVLink command sending is enabled.</p>
+        <p>Stage 2 supports UDP read-only telemetry, mission supervision, and intelligence panels. TCP remains disabled/placeholder; serial is reserved for Stage 3 bench readiness. No MAVLink command sending is enabled.</p>
         <pre className="overflow-auto rounded border border-zinc-800 bg-black p-3 text-xs text-zinc-300">mavproxy --master=COMx --out=127.0.0.1:14550
 
 mavproxy.py --out=127.0.0.1:14550</pre>

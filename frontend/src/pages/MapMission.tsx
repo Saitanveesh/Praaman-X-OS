@@ -118,7 +118,7 @@ export default function MapMission({ drone, telemetry, profiles }: { drone?: Dro
     });
     if (selectedMission?.vehicle_type === 'FIXED_WING' && !waypoints.some((waypoint) => waypoint.action === 'LOITER' || waypoint.action === 'RETURN_POINT')) warnings.push('Fixed-wing draft has no LOITER or RETURN_POINT behavior.');
     if (!activeGeofence) warnings.push('Geofence missing. This is informational in Stage 1.6.');
-    warnings.push('Mission is draft/simulation-only. No mission upload to drone hardware is available.');
+    warnings.push('Mission is draft-only under MAVLINK_READ_ONLY and simulation-only under MOCK. No mission upload to drone hardware is available.');
     return warnings;
   }, [activeGeofence, selectedMission, waypoints]);
 
@@ -287,7 +287,7 @@ export default function MapMission({ drone, telemetry, profiles }: { drone?: Dro
 
     <section className="rounded border border-amber-700/60 bg-amber-950/20 p-4 text-sm text-amber-100">
       Stage 2.0 read-only safety remains enforced. No real flight-controller commands are sent. Mission drafts do not upload to hardware.
-      {isMavlinkSource && <p className="mt-2">Mission simulation is available only with MOCK telemetry source.</p>}
+      {isMavlinkSource && <p className="mt-2">Mission simulation is disabled while MAVLINK_READ_ONLY is active. Switch to MOCK to run simulated mission replay.</p>}
     </section>
     <TelemetrySourcePanel compact />
 
@@ -323,7 +323,7 @@ export default function MapMission({ drone, telemetry, profiles }: { drone?: Dro
           <button onClick={stopSimulation} disabled={!selectedMissionId || isMavlinkSource} className="rounded border border-zinc-600 px-3 py-2 text-xs uppercase text-white disabled:opacity-40">Stop</button>
           <button onClick={resetSimulation} disabled={!selectedMissionId || isMavlinkSource} className="rounded border border-zinc-600 px-3 py-2 text-xs uppercase text-white disabled:opacity-40">Reset</button>
         </div>
-        {isMavlinkSource && <p className="mt-2 rounded border border-amber-900/70 bg-amber-950/20 p-2 text-xs text-amber-100">Mission simulation is available only with MOCK telemetry source.</p>}
+        {isMavlinkSource && <p className="mt-2 rounded border border-amber-900/70 bg-amber-950/20 p-2 text-xs text-amber-100">Mission simulation is disabled while MAVLINK_READ_ONLY is active. Switch to MOCK to run simulated mission replay.</p>}
         <p className="mt-2 text-xs text-zinc-500">Current mission: {selectedMission?.name ?? 'none'}</p>
         <p className="mt-2 text-xs text-zinc-500">{simulation?.message ?? 'Select a mission to view simulation status.'} Waypoint {simulation ? simulation.active_waypoint_index + 1 : 0} / {simulation?.waypoint_count ?? waypoints.length}</p>
         <p className="mt-2 text-xs text-zinc-500">Latest event: {latestMissionEvent ? `${latestMissionEvent.event_type} / ${latestMissionEvent.message}` : 'none'}</p>

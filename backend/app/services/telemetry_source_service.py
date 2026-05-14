@@ -36,7 +36,7 @@ class TelemetrySourceService:
         db.add(MissionEvent(
             mission_id="SYSTEM",
             drone_id="PX-QD-001",
-            event_type=MissionEventType.TELEMETRY_SOURCE_SWITCHED.value,
+            event_type=(MissionEventType.TELEMETRY_SOURCE_SWITCHED_TO_MOCK.value if source_type == TelemetrySource.MOCK else MissionEventType.TELEMETRY_SOURCE_SWITCHED_TO_MAVLINK_READ_ONLY.value if source_type == TelemetrySource.MAVLINK_READ_ONLY else MissionEventType.TELEMETRY_SOURCE_SWITCHED.value),
             severity="INFO",
             message=f"Telemetry source switched to {source_type.value}. Read-only mode remains enforced.",
             details=f"source_type={source_type.value}",
@@ -103,3 +103,14 @@ class TelemetrySourceService:
         db.commit()
         db.refresh(source)
         return source
+
+    def record_source_switch_failed(self, db: Session, message: str) -> None:
+        db.add(MissionEvent(
+            mission_id="SYSTEM",
+            drone_id="PX-QD-001",
+            event_type=MissionEventType.TELEMETRY_SOURCE_SWITCH_FAILED.value,
+            severity="WARN",
+            message=message,
+            details="read_only=true",
+        ))
+        db.commit()

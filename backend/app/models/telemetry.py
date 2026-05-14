@@ -15,7 +15,7 @@ class Telemetry(Base):
     altitude_m: Mapped[float] = mapped_column(Float)
     speed_mps: Mapped[float] = mapped_column(Float)
     heading_deg: Mapped[float] = mapped_column(Float)
-    battery_percent: Mapped[int] = mapped_column(Integer)
+    battery_percent: Mapped[int | None] = mapped_column(Integer, nullable=True)
     mode: Mapped[str] = mapped_column(String(32))
     armed: Mapped[bool] = mapped_column(Boolean, default=False)
     gps_status: Mapped[str] = mapped_column(String(32))

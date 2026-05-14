@@ -28,8 +28,11 @@ class TelemetryIntelligenceService:
                 timestamp=now,
             )
 
-        battery = int(latest.battery_percent)
-        if battery >= 60:
+        battery = int(latest.battery_percent) if latest.battery_percent is not None else 0
+        if latest.battery_percent is None:
+            risk = "UNKNOWN"
+            action = "Battery percentage unavailable in MAVLink stream; continue read-only monitoring."
+        elif battery >= 60:
             risk = "NORMAL"
             action = "Continue monitoring."
         elif battery >= 35:
