@@ -29,14 +29,26 @@ def status():
     return mavlink_readonly_provider.get_status()
 
 
+@router.get("/diagnostics")
+def diagnostics():
+    return mavlink_readonly_provider.get_diagnostics()
+
+
+@router.get("/safety")
+def safety():
+    return mavlink_readonly_provider.get_safety()
+
+
 @router.post("/connect")
 def connect(payload: MAVLinkConnectRequest | None = None, db: Session = Depends(get_db)):
     request = payload or MAVLinkConnectRequest()
+    _audit(db, MissionEventType.MAVLINK_READONLY_CONNECT_ATTEMPT, f"MAVLink read-only connection attempt on {request.protocol.upper()} {request.host}:{request.port}")
     status_payload = mavlink_readonly_provider.connect(host=request.host, port=request.port, protocol=request.protocol)
     source_service.update_source_endpoint(db, TelemetrySource.MAVLINK_READ_ONLY, request.host, request.port, request.protocol)
     if not status_payload["connected"]:
         error = status_payload.get("last_error") or "Unknown MAVLink read-only connection error"
         source_service.set_source_error(db, TelemetrySource.MAVLINK_READ_ONLY, error)
+        _audit(db, MissionEventType.MAVLINK_READONLY_ERROR, "MAVLink read-only listener failed to connect.", severity="WARN", details=str(status_payload))
         return {"ok": False, **status_payload}
     source_service.mark_source_inactive_ready(db, TelemetrySource.MAVLINK_READ_ONLY)
     _audit(db, MissionEventType.MAVLINK_READONLY_CONNECTED, f"MAVLink read-only listener connected on {status_payload['endpoint']}", details=str(status_payload))

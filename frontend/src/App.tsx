@@ -3,6 +3,7 @@ import { api } from './api/client';
 import { connectTelemetry } from './api/websocket';
 import Layout from './components/Layout';
 import Audit from './pages/Audit';
+import BenchReadiness from './pages/BenchReadiness';
 import Bridge from './pages/Bridge';
 import Commands from './pages/Commands';
 import Dashboard from './pages/Dashboard';
@@ -43,6 +44,7 @@ export default function App() {
   if (page === 'profiles') content = <Profiles profiles={profiles} />;
   if (page === 'bridge') content = <Bridge />;
   if (page === 'sitl-readiness') content = <SITLReadiness />;
+  if (page === 'bench-readiness') content = <BenchReadiness />;
   if (page === 'map-mission') content = <MapMission drone={primaryDrone} telemetry={telemetry} profiles={profiles} />;
 
   return <Layout page={page} setPage={setPage}>{content}</Layout>;

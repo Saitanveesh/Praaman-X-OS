@@ -10,7 +10,7 @@ class TelemetryRead(BaseModel):
     altitude_m: float
     speed_mps: float
     heading_deg: float
-    battery_percent: int
+    battery_percent: int | None
     mode: str
     armed: bool
     gps_status: str

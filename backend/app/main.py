@@ -4,7 +4,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import audit, bridge, commands, connection_mode, drones, geofences, intelligence, mavlink_readonly, missions, profiles, sitl, system, telemetry, telemetry_sources, websocket
+from app.api import audit, bench, bridge, commands, connection_mode, connection_profiles, drones, geofences, intelligence, mavlink_readonly, missions, profiles, sitl, system, telemetry, telemetry_sources, websocket
 from app.core.config import settings
 from app.db.init_db import init_db
 from app.db.session import SessionLocal
@@ -22,6 +22,7 @@ async def telemetry_loop(app: FastAPI) -> None:
     service = TelemetryService()
     source_service = TelemetrySourceService()
     mavlink_seen = False
+    last_mavlink_error_logged: str | None = None
     while True:
         with SessionLocal() as db:
             active = source_service.get_active_source(db)
@@ -29,6 +30,7 @@ async def telemetry_loop(app: FastAPI) -> None:
             row = None
             if active_type == TelemetrySource.MOCK.value:
                 mavlink_seen = False
+                last_mavlink_error_logged = None
                 row = mission_simulation_service.step_simulation(db)
                 if row is None:
                     row = service.save(db, generator.next())
@@ -40,15 +42,19 @@ async def telemetry_loop(app: FastAPI) -> None:
                         db.add(MissionEvent(
                             mission_id="SYSTEM",
                             drone_id=payload_data["drone_id"],
-                            event_type=MissionEventType.MAVLINK_TELEMETRY_RECEIVED.value,
+                            event_type=MissionEventType.MAVLINK_TELEMETRY_FIRST_RECEIVED.value,
                             severity="INFO",
                             message="First MAVLink read-only telemetry received after source activation.",
                             details=f"endpoint={mavlink_readonly_provider.get_status().get('endpoint')}",
                         ))
                         db.commit()
                         mavlink_seen = True
+                        last_mavlink_error_logged = None
                 elif mavlink_readonly_provider.get_status().get("last_error"):
-                    source_service.set_source_error(db, TelemetrySource.MAVLINK_READ_ONLY, str(mavlink_readonly_provider.get_status().get("last_error")))
+                    current_error = str(mavlink_readonly_provider.get_status().get("last_error"))
+                    if current_error != last_mavlink_error_logged:
+                        source_service.set_source_error(db, TelemetrySource.MAVLINK_READ_ONLY, current_error)
+                        last_mavlink_error_logged = current_error
             if row is None:
                 await asyncio.sleep(1)
                 continue
@@ -81,10 +87,12 @@ app.include_router(audit.router)
 app.include_router(geofences.router)
 app.include_router(missions.router)
 app.include_router(connection_mode.router)
+app.include_router(connection_profiles.router)
 app.include_router(bridge.router)
 app.include_router(telemetry_sources.router)
 app.include_router(mavlink_readonly.router)
 app.include_router(sitl.router)
+app.include_router(bench.router)
 app.include_router(intelligence.router)
 app.include_router(system.router)
 app.include_router(websocket.router)
