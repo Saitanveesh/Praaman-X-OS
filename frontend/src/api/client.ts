@@ -3,7 +3,7 @@ import type { Command, CommandType } from '../types/command';
 import type { Drone } from '../types/drone';
 import type { Telemetry } from '../types/telemetry';
 import type { VehicleProfile } from '../types/profile';
-import type { BridgeStatus, C2ConnectionConfig, GeofenceDraft, MapWaypoint, MapWaypointCreate, MAVLinkEndpoint, MissionDraft, MissionDraftCreate, MissionEvent, MissionRouteSummary, MissionSimulationStatus, MissionValidation, TelemetrySource, TelemetrySourceConfig } from '../types/mission';
+import type { BridgeStatus, C2ConnectionConfig, GeofenceDraft, IntelligenceSummary, MapWaypoint, MapWaypointCreate, MAVLinkEndpoint, MissionDraft, MissionDraftCreate, MissionEvent, MissionExport, MissionImportPayload, MissionReport, MissionRouteSummary, MissionSimulationStatus, MissionValidation, SITLReadiness, SystemStatus, TelemetrySource, TelemetrySourceConfig } from '../types/mission';
 
 const API_BASE = import.meta.env.VITE_API_BASE ?? 'http://localhost:8000';
 
@@ -36,6 +36,9 @@ export const api = {
   mavlinkReadonlyStatus: () => getJson<Record<string, unknown>>('/api/mavlink-readonly/status'),
   mavlinkReadonlyConnect: () => postJson<Record<string, unknown>>('/api/mavlink-readonly/connect', {}),
   mavlinkReadonlyDisconnect: () => postJson<Record<string, unknown>>('/api/mavlink-readonly/disconnect', {}),
+  sitlReadiness: () => getJson<SITLReadiness>('/api/sitl/readiness'),
+  systemStatus: () => getJson<SystemStatus>('/api/system/status'),
+  telemetryIntelligence: (droneId: string) => getJson<IntelligenceSummary>(`/api/intelligence/summary/${droneId}`),
   bridgeEndpoints: () => getJson<MAVLinkEndpoint[]>('/api/bridge/endpoints'),
   connectionMode: () => getJson<C2ConnectionConfig>('/api/connection-mode'),
   setConnectionMode: (mode: C2ConnectionConfig['mode']) => postJson<C2ConnectionConfig>('/api/connection-mode', { mode }),
@@ -48,6 +51,12 @@ export const api = {
   missionEvents: (missionId: string) => getJson<MissionEvent[]>(`/api/missions/${missionId}/events`),
   startMissionSimulation: (missionId: string) => postJson<MissionSimulationStatus>(`/api/missions/${missionId}/simulate/start`, {}),
   stopMissionSimulation: (missionId: string) => postJson<MissionSimulationStatus>(`/api/missions/${missionId}/simulate/stop`, {}),
+  pauseMissionSimulation: (missionId: string) => postJson<MissionSimulationStatus>(`/api/missions/${missionId}/simulate/pause`, {}),
+  resumeMissionSimulation: (missionId: string) => postJson<MissionSimulationStatus>(`/api/missions/${missionId}/simulate/resume`, {}),
+  resetMissionSimulation: (missionId: string) => postJson<MissionSimulationStatus>(`/api/missions/${missionId}/simulate/reset`, {}),
+  exportMission: (missionId: string) => getJson<MissionExport>(`/api/missions/${missionId}/export`),
+  importMission: (payload: MissionImportPayload) => postJson<MissionDraft>('/api/missions/import', payload),
+  missionReport: (missionId: string) => getJson<MissionReport>(`/api/missions/${missionId}/report`),
   missionSimulationStatus: (missionId: string) => getJson<MissionSimulationStatus>(`/api/missions/${missionId}/simulate/status`),
   createGeofence: (geofence: Omit<GeofenceDraft, 'id' | 'geofence_id' | 'created_at' | 'updated_at'> & { geofence_id?: string }) => postJson<GeofenceDraft>('/api/geofences', geofence),
   geofences: () => getJson<GeofenceDraft[]>('/api/geofences'),

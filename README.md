@@ -216,3 +216,78 @@ mavproxy.py --out=127.0.0.1:14550
 ```
 
 These examples are helper text only. They are not executed by Pramaan-X OS, and they do not enable command authority in this application.
+
+## Stage 1.4–1.6: SITL Readiness, Mission Planner Coexistence, Telemetry Intelligence, Mission Replay, and Demo Hardening
+
+Stage 1.4–1.6 turns the working Stage 1 prototype into a stronger demo build while preserving the core safety boundary: Pramaan-X Intelligent C2 OS remains simulation-only, read-only for MAVLink preparation, and disconnected from real drone command execution.
+
+Mission Planner remains the setup/calibration tool for firmware flashing, frame setup, accelerometer calibration, compass calibration, radio calibration, ESC/motor testing, parameter tuning, and initial failsafe setup.
+
+Pramaan-X OS remains the intelligent operational C2 and supervision layer for telemetry intelligence, mission supervision, command governance, audit logging, vehicle profile management, mission draft planning, simulation replay, and future secure C2 integration.
+
+Safety notes for this stage:
+
+- Stage 1 remains simulation-only.
+- No real MAVLink command sending exists.
+- No real mission upload exists.
+- No real `ARM`, `TAKEOFF`, `DISARM`, payload, or hardware command execution exists.
+- SITL readiness is documentation/checklist only and never launches SITL.
+- Telemetry intelligence provides operator-level warnings and recommended actions only; it never triggers commands.
+- Mission replay is mock/simulation-only.
+- Mission import/export is draft-only using `PRAMAAN_X_MISSION_DRAFT_V1` JSON.
+- Mission reports explicitly return `simulation_only: true` and `hardware_upload_enabled: false`.
+
+Stage 1.4–1.6 adds:
+
+- `SITL READINESS` frontend page with readiness status, expected UDP endpoint, Mission Planner coexistence model, and future SITL flow documentation.
+- System Status API and dashboard panel showing Stage 1 simulation status, disabled hardware commands, disabled MAVLink command sending, inactive PUFShield integration, active telemetry source, and backend health.
+- Telemetry Intelligence API and dashboard panel for battery risk, telemetry freshness, warnings, summaries, and operator recommendations.
+- Link Intelligence API and dashboard panel for link state, link risk, operator message, and recommended action.
+- PUF Status dashboard panel that clearly marks PUFShield as not integrated and secure command mode as disabled in Stage 1.
+- Mission replay controls: start, pause, resume, stop, reset, current mission, latest event, and simulation-only warning.
+- Mission event timeline filtering by event type, severity, or message text.
+- Mission draft JSON export/import and mission report generation.
+- Improved route summary with waypoint count, estimated distance, estimated duration, min/max altitude, lost-link action, and validation status.
+
+New Stage 1.4–1.6 backend endpoints:
+
+- `GET /api/sitl/readiness`
+- `GET /api/system/status`
+- `GET /api/intelligence/telemetry/{drone_id}`
+- `GET /api/intelligence/link/{drone_id}`
+- `GET /api/intelligence/summary/{drone_id}`
+- `POST /api/missions/{mission_id}/simulate/pause`
+- `POST /api/missions/{mission_id}/simulate/resume`
+- `POST /api/missions/{mission_id}/simulate/reset`
+- `GET /api/missions/{mission_id}/export`
+- `POST /api/missions/import`
+- `GET /api/missions/{mission_id}/report`
+
+### Demo Guide
+
+1. Run backend.
+2. Run frontend.
+3. Open Dashboard.
+4. Check Telemetry Intelligence.
+5. Open Mission Planner Bridge.
+6. Open SITL Readiness.
+7. Open Map / Mission.
+8. Create mission draft.
+9. Add waypoints.
+10. Validate mission.
+11. Start simulation.
+12. View event timeline.
+13. Export mission/report.
+
+### Stage 1.4–1.6 verification commands
+
+```bash
+cd backend
+python -m py_compile $(find app tests -name '*.py')
+pytest
+```
+
+```bash
+cd frontend
+npm run build
+```
