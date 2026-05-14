@@ -26,13 +26,13 @@ export default function Bridge() {
 
   return <div className="space-y-4 text-zinc-200">
     <section className="rounded border border-amber-700/60 bg-amber-950/20 p-4 text-sm text-amber-100">
-      Stage 1.3 is read-only and simulation-only. No real flight-controller commands are sent. Mission drafts and simulations do not upload to hardware.
+      Stage 1.4–1.6 is read-only and simulation-only. No real flight-controller commands are sent. Mission drafts and simulations do not upload to hardware.
     </section>
     <TelemetrySourcePanel />
     <section className="rounded border border-zinc-800 bg-zinc-950 p-4">
       <p className="text-xs uppercase tracking-[0.25em] text-zinc-500">Mission Planner Bridge</p>
       <h2 className="mt-2 text-xl font-semibold text-white">Compatibility and authority separation</h2>
-      <p className="mt-3 max-w-3xl text-sm text-zinc-400">Mission Planner handles calibration/setup. Pramaan-X OS handles intelligent supervision, governance, audit logs, and future secure control.</p>
+      <p className="mt-3 max-w-3xl text-sm text-zinc-400">Mission Planner remains the firmware flashing, frame setup, calibration, motor/ESC test, parameter, and failsafe setup tool. Pramaan-X OS is the intelligent operational C2/supervision layer for telemetry intelligence, command governance, audit logging, vehicle profiles, mission drafts, and future secure C2 integration.</p>
     </section>
     <div className="grid gap-4 lg:grid-cols-3">
       <Status label="Current C2 connection mode" value={mode?.mode ?? 'LOADING'} />
@@ -54,7 +54,7 @@ export default function Bridge() {
       <div className="mt-3 space-y-2 text-sm text-zinc-400">
         <p>Mission Planner remains the calibration/setup tool.</p>
         <p>Pramaan-X OS can later read the same MAVLink stream through MAVProxy or MAVLink Router.</p>
-        <p>Stage 1.3 only prepares read-only telemetry support. No MAVLink command sending is enabled.</p>
+        <p>Stage 1.4–1.6 prepares read-only telemetry support, mission replay, and intelligence panels. No MAVLink command sending is enabled.</p>
         <pre className="overflow-auto rounded border border-zinc-800 bg-black p-3 text-xs text-zinc-300">mavproxy --master=COMx --out=127.0.0.1:14550
 
 mavproxy.py --out=127.0.0.1:14550</pre>
@@ -66,7 +66,7 @@ mavproxy.py --out=127.0.0.1:14550</pre>
       <div className="mt-3 overflow-x-auto">
         <table className="w-full text-left text-sm"><thead className="text-xs uppercase text-zinc-500"><tr><th className="py-2">Endpoint</th><th>Name</th><th>Host</th><th>Status</th><th>Read-only</th></tr></thead><tbody>{endpoints.map((endpoint) => <tr key={endpoint.endpoint_id} className="border-t border-zinc-800"><td className="py-2 text-zinc-300">{endpoint.endpoint_id}</td><td>{endpoint.name}</td><td>{endpoint.protocol} {endpoint.host}:{endpoint.port}</td><td>{endpoint.status}</td><td>{endpoint.read_only ? 'true' : 'false'}</td></tr>)}</tbody></table>
       </div>
-      <p className="mt-3 text-xs text-zinc-500">Future secure mode is a placeholder for later PUFShield integration and is not active in Stage 1.3.</p>
+      <p className="mt-3 text-xs text-zinc-500">Future secure mode is a placeholder for later PUFShield integration and is not active in Stage 1.</p>
     </section>
   </div>;
 }
@@ -78,6 +78,6 @@ function Status({ label, value }: { label: string; value: string }) {
 function descriptionFor(mode: C2ConnectionMode) {
   if (mode === 'SETUP_MODE') return 'Mission Planner has setup authority; Pramaan-X is read-only.';
   if (mode === 'OPS_MONITOR_MODE') return 'Pramaan-X monitors telemetry; high-risk commands remain disabled.';
-  if (mode === 'PRAMAAN_CONTROL_MODE') return 'Future operational authority mode; still simulation-only now.';
-  return 'Future PUFShield-secure control placeholder; not active in Stage 1.3.';
+  if (mode === 'PRAMAAN_CONTROL_MODE') return 'Pramaan-X can run simulation-only mission controls. No hardware commands.';
+  return 'Future PUFShield-secure control placeholder; unavailable in Stage 1.';
 }

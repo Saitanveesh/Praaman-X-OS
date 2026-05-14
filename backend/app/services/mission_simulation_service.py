@@ -61,6 +61,47 @@ class MissionSimulationService:
         self._audit.record(db, operator_id="system", drone_id=mission.drone_id, event_type="MISSION_SIMULATION", decision="ALLOW", reason="Simulation-only mission runner stopped.")
         return runtime
 
+
+    def pause_simulation(self, db: Session, mission_id: str) -> SimulationRuntime | None:
+        mission = db.query(MissionDraft).filter(MissionDraft.mission_id == mission_id).first()
+        if not mission:
+            return None
+        runtime = self._runs.get(mission_id, SimulationRuntime(mission_id, MissionSimulationState.IDLE, 0, "Simulation idle."))
+        if runtime.state == MissionSimulationState.RUNNING:
+            runtime.state = MissionSimulationState.PAUSED
+            runtime.message = "Simulation paused."
+            self._record_event(db, mission, "MISSION_SIM_PAUSED", "INFO", "Mission simulation paused; no hardware command was sent.")
+            self._audit.record(db, operator_id="system", drone_id=mission.drone_id, event_type="MISSION_SIMULATION", decision="ALLOW", reason="Simulation-only mission runner paused.")
+        else:
+            runtime.message = f"Pause ignored because simulation is {runtime.state.value}."
+        self._runs[mission_id] = runtime
+        return runtime
+
+    def resume_simulation(self, db: Session, mission_id: str) -> SimulationRuntime | None:
+        mission = db.query(MissionDraft).filter(MissionDraft.mission_id == mission_id).first()
+        if not mission:
+            return None
+        runtime = self._runs.get(mission_id, SimulationRuntime(mission_id, MissionSimulationState.IDLE, 0, "Simulation idle."))
+        if runtime.state == MissionSimulationState.PAUSED:
+            runtime.state = MissionSimulationState.RUNNING
+            runtime.message = "Simulation resumed over draft waypoints only."
+            self._record_event(db, mission, "MISSION_SIM_RESUMED", "INFO", "Mission simulation resumed; no hardware command was sent.")
+            self._audit.record(db, operator_id="system", drone_id=mission.drone_id, event_type="MISSION_SIMULATION", decision="ALLOW", reason="Simulation-only mission runner resumed.")
+        else:
+            runtime.message = f"Resume ignored because simulation is {runtime.state.value}."
+        self._runs[mission_id] = runtime
+        return runtime
+
+    def reset_simulation(self, db: Session, mission_id: str) -> SimulationRuntime | None:
+        mission = db.query(MissionDraft).filter(MissionDraft.mission_id == mission_id).first()
+        if not mission:
+            return None
+        runtime = SimulationRuntime(mission_id, MissionSimulationState.IDLE, 0, "Simulation reset to first draft waypoint.")
+        self._runs[mission_id] = runtime
+        self._record_event(db, mission, "MISSION_SIM_RESET", "INFO", "Mission simulation reset; no hardware command was sent.")
+        self._audit.record(db, operator_id="system", drone_id=mission.drone_id, event_type="MISSION_SIMULATION", decision="ALLOW", reason="Simulation-only mission runner reset.")
+        return runtime
+
     def get_simulation_status(self, db: Session, mission_id: str) -> SimulationRuntime | None:
         if not db.query(MissionDraft).filter(MissionDraft.mission_id == mission_id).first():
             return None

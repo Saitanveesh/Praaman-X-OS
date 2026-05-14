@@ -9,6 +9,7 @@ import Dashboard from './pages/Dashboard';
 import MapMission from './pages/MapMission';
 import Drones from './pages/Drones';
 import Profiles from './pages/Profiles';
+import SITLReadiness from './pages/SITLReadiness';
 import type { AuditLog } from './types/audit';
 import type { Command } from './types/command';
 import type { Drone } from './types/drone';
@@ -41,6 +42,7 @@ export default function App() {
   if (page === 'audit') content = <Audit logs={audit} />;
   if (page === 'profiles') content = <Profiles profiles={profiles} />;
   if (page === 'bridge') content = <Bridge />;
+  if (page === 'sitl-readiness') content = <SITLReadiness />;
   if (page === 'map-mission') content = <MapMission drone={primaryDrone} telemetry={telemetry} profiles={profiles} />;
 
   return <Layout page={page} setPage={setPage}>{content}</Layout>;

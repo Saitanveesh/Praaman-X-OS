@@ -4,7 +4,7 @@ import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { MapContainer, Marker, Polygon, Polyline, Popup, TileLayer, useMap } from 'react-leaflet';
 import { api } from '../api/client';
 import type { Drone } from '../types/drone';
-import type { GeofenceDraft, MapWaypoint, MissionDraft, MissionEvent, MissionRouteSummary, MissionSimulationStatus, MissionValidation, TelemetrySourceConfig, WaypointAction } from '../types/mission';
+import type { GeofenceDraft, MapWaypoint, MissionDraft, MissionEvent, MissionReport, MissionRouteSummary, MissionSimulationStatus, MissionValidation, TelemetrySourceConfig, WaypointAction } from '../types/mission';
 import type { VehicleProfile } from '../types/profile';
 import type { Telemetry } from '../types/telemetry';
 import TelemetrySourcePanel from '../components/TelemetrySourcePanel';
@@ -58,7 +58,7 @@ export default function MapMission({ drone, telemetry, profiles }: { drone?: Dro
   const [geofences, setGeofences] = useState<GeofenceDraft[]>([]);
   const [validation, setValidation] = useState<MissionValidation>();
   const [summary, setSummary] = useState<MissionRouteSummary>({ waypoint_count: 0, estimated_distance_m: 0, max_altitude_m: 0, min_altitude_m: 0 });
-  const [missionName, setMissionName] = useState('Stage 1.2 Mission Draft');
+  const [missionName, setMissionName] = useState('Stage 1.6 Mission Draft');
   const [missionDroneId, setMissionDroneId] = useState('PX-QD-001');
   const [vehicleType, setVehicleType] = useState<'QUADCOPTER' | 'FIXED_WING'>('QUADCOPTER');
   const [defaultAltitude, setDefaultAltitude] = useState(40);
@@ -70,6 +70,11 @@ export default function MapMission({ drone, telemetry, profiles }: { drone?: Dro
   const [events, setEvents] = useState<MissionEvent[]>([]);
   const [simulation, setSimulation] = useState<MissionSimulationStatus>();
   const [activeSource, setActiveSource] = useState<TelemetrySourceConfig>();
+  const [eventFilter, setEventFilter] = useState('');
+  const [missionJson, setMissionJson] = useState('');
+  const [report, setReport] = useState<MissionReport>();
+  const [importJson, setImportJson] = useState('');
+  const [importMessage, setImportMessage] = useState('');
 
   const selectedMission = missions.find((mission) => mission.mission_id === selectedMissionId);
   const profile = useMemo(() => profiles.find((item) => item.profile_id === drone?.profile_id), [profiles, drone?.profile_id]);
@@ -83,13 +88,24 @@ export default function MapMission({ drone, telemetry, profiles }: { drone?: Dro
   const geofencePolygon = parseGeofencePolygon(activeGeofence);
   const frontendSummary = useMemo(() => {
     const altitudes = waypoints.map((waypoint) => waypoint.altitude_m);
+    const estimatedDistance = summary.estimated_distance_m || haversineDistanceM(routePoints);
+    const speed = selectedMission?.default_speed_mps ?? defaultSpeed;
     return {
       waypoint_count: waypoints.length,
-      estimated_distance_m: summary.estimated_distance_m || haversineDistanceM(routePoints),
+      estimated_distance_m: estimatedDistance,
+      estimated_duration_s: speed > 0 ? estimatedDistance / speed : 0,
       max_altitude_m: altitudes.length ? Math.max(...altitudes) : 0,
       min_altitude_m: altitudes.length ? Math.min(...altitudes) : 0,
     };
-  }, [routePoints, summary.estimated_distance_m, waypoints]);
+  }, [defaultSpeed, routePoints, selectedMission?.default_speed_mps, summary.estimated_distance_m, waypoints]);
+
+  const filteredEvents = useMemo(() => {
+    const needle = eventFilter.trim().toLowerCase();
+    if (!needle) return events;
+    return events.filter((event) => `${event.event_type} ${event.severity} ${event.message}`.toLowerCase().includes(needle));
+  }, [eventFilter, events]);
+
+  const latestMissionEvent = events[events.length - 1];
 
   const localWarnings = useMemo(() => {
     const warnings: string[] = [];
@@ -100,7 +116,7 @@ export default function MapMission({ drone, telemetry, profiles }: { drone?: Dro
       if (waypoint.altitude_m <= 0) warnings.push(`Waypoint ${waypoint.sequence} altitude is below or equal to zero.`);
     });
     if (selectedMission?.vehicle_type === 'FIXED_WING' && !waypoints.some((waypoint) => waypoint.action === 'LOITER' || waypoint.action === 'RETURN_POINT')) warnings.push('Fixed-wing draft has no LOITER or RETURN_POINT behavior.');
-    if (!activeGeofence) warnings.push('Geofence missing. This is informational in Stage 1.2.');
+    if (!activeGeofence) warnings.push('Geofence missing. This is informational in Stage 1.6.');
     warnings.push('Mission is draft/simulation-only. No mission upload to drone hardware is available.');
     return warnings;
   }, [activeGeofence, selectedMission, waypoints]);
@@ -191,6 +207,47 @@ export default function MapMission({ drone, telemetry, profiles }: { drone?: Dro
     setEvents(await api.missionEvents(selectedMissionId));
   }
 
+  async function pauseSimulation() {
+    if (!selectedMissionId) return;
+    setSimulation(await api.pauseMissionSimulation(selectedMissionId));
+    setEvents(await api.missionEvents(selectedMissionId));
+  }
+
+  async function resumeSimulation() {
+    if (!selectedMissionId) return;
+    setSimulation(await api.resumeMissionSimulation(selectedMissionId));
+    setEvents(await api.missionEvents(selectedMissionId));
+  }
+
+  async function resetSimulation() {
+    if (!selectedMissionId) return;
+    setSimulation(await api.resetMissionSimulation(selectedMissionId));
+    setEvents(await api.missionEvents(selectedMissionId));
+  }
+
+  async function exportMissionJson() {
+    if (!selectedMissionId) return;
+    setMissionJson(JSON.stringify(await api.exportMission(selectedMissionId), null, 2));
+  }
+
+  async function generateMissionReport() {
+    if (!selectedMissionId) return;
+    const nextReport = await api.missionReport(selectedMissionId);
+    setReport(nextReport);
+    setMissionJson(JSON.stringify(nextReport, null, 2));
+  }
+
+  async function importMissionDraft() {
+    try {
+      const created = await api.importMission(JSON.parse(importJson));
+      setImportMessage(`Imported draft ${created.mission_id}. Draft-only; no hardware upload.`);
+      await refreshMissions(created.mission_id);
+      setSelectedMissionId(created.mission_id);
+    } catch (error) {
+      setImportMessage(error instanceof Error ? error.message : 'Import failed.');
+    }
+  }
+
   async function createDraftGeofence() {
     const delta = 0.003;
     const polygon = [
@@ -199,7 +256,7 @@ export default function MapMission({ drone, telemetry, profiles }: { drone?: Dro
       { lat: lat + delta, lon: lon + delta },
       { lat: lat + delta, lon: lon - delta },
     ];
-    await api.createGeofence({ name: 'Stage 1.2 Draft Geofence', drone_id: selectedMission?.drone_id ?? missionDroneId, enabled: true, polygon_json: JSON.stringify(polygon), max_altitude_m: 120, min_altitude_m: 0 });
+    await api.createGeofence({ name: 'Stage 1.6 Draft Geofence', drone_id: selectedMission?.drone_id ?? missionDroneId, enabled: true, polygon_json: JSON.stringify(polygon), max_altitude_m: 120, min_altitude_m: 0 });
     await refreshGeofences();
   }
 
@@ -228,7 +285,7 @@ export default function MapMission({ drone, telemetry, profiles }: { drone?: Dro
     </section>
 
     <section className="rounded border border-amber-700/60 bg-amber-950/20 p-4 text-sm text-amber-100">
-      Stage 1.3 is read-only and simulation-only. No real flight-controller commands are sent. Mission drafts and simulations do not upload to hardware.
+      Stage 1.4–1.6 is read-only and simulation-only. No real flight-controller commands are sent. Mission drafts and simulations do not upload to hardware.
     </section>
     <TelemetrySourcePanel compact />
 
@@ -247,7 +304,7 @@ export default function MapMission({ drone, telemetry, profiles }: { drone?: Dro
 
     <section className="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
       <div className="rounded border border-zinc-800 bg-zinc-950 p-4"><div className="flex items-center justify-between"><h3 className="text-sm font-semibold uppercase tracking-widest text-zinc-300">Waypoint table</h3><button onClick={validateMission} disabled={!selectedMissionId} className="rounded border border-zinc-600 px-3 py-2 text-xs uppercase text-white">Validate mission</button></div><div className="mt-3 overflow-auto"><table className="w-full text-left text-xs"><thead className="text-zinc-500"><tr><th className="p-2">Seq</th><th className="p-2">Lat</th><th className="p-2">Lon</th><th className="p-2">Alt</th><th className="p-2">Speed</th><th className="p-2">Action</th><th className="p-2">Notes</th></tr></thead><tbody>{waypoints.map((waypoint) => <tr key={waypoint.id} className="border-t border-zinc-800"><td className="p-2 text-white">{waypoint.sequence}</td><td className="p-2">{waypoint.lat.toFixed(6)}</td><td className="p-2">{waypoint.lon.toFixed(6)}</td><td className="p-2">{waypoint.altitude_m}m</td><td className="p-2">{waypoint.speed_mps}mps</td><td className="p-2">{waypoint.action}</td><td className="p-2">{waypoint.notes}</td></tr>)}</tbody></table>{waypoints.length === 0 && <p className="p-3 text-sm text-zinc-500">No waypoint drafts added.</p>}</div></div>
-      <div className="rounded border border-zinc-800 bg-zinc-950 p-4"><h3 className="text-sm font-semibold uppercase tracking-widest text-zinc-300">Route summary</h3><div className="mt-3 grid grid-cols-2 gap-2 text-sm"><p className="rounded border border-zinc-800 bg-black p-2">Waypoints<br /><span className="text-lg text-white">{frontendSummary.waypoint_count}</span></p><p className="rounded border border-zinc-800 bg-black p-2">Distance<br /><span className="text-lg text-white">{frontendSummary.estimated_distance_m.toFixed(1)} m</span></p><p className="rounded border border-zinc-800 bg-black p-2">Highest altitude<br /><span className="text-lg text-white">{frontendSummary.max_altitude_m} m</span></p><p className="rounded border border-zinc-800 bg-black p-2">Lowest altitude<br /><span className="text-lg text-white">{frontendSummary.min_altitude_m} m</span></p><p className="rounded border border-zinc-800 bg-black p-2">Vehicle<br /><span className="text-white">{selectedMission?.vehicle_type ?? vehicleType}</span></p><p className="rounded border border-zinc-800 bg-black p-2">Lost link<br /><span className="text-white">{selectedMission?.lost_link_action ?? lostLinkAction}</span></p></div><p className={`mt-3 text-sm ${validation?.valid ? 'text-emerald-300' : validation ? 'text-red-300' : 'text-zinc-400'}`}>Validation result: {validation ? `${validation.status} (${validation.valid ? 'valid' : 'invalid'})` : 'not run'}</p></div>
+      <div className="rounded border border-zinc-800 bg-zinc-950 p-4"><h3 className="text-sm font-semibold uppercase tracking-widest text-zinc-300">Route summary</h3><div className="mt-3 grid grid-cols-2 gap-2 text-sm"><p className="rounded border border-zinc-800 bg-black p-2">Waypoints<br /><span className="text-lg text-white">{frontendSummary.waypoint_count}</span></p><p className="rounded border border-zinc-800 bg-black p-2">Distance<br /><span className="text-lg text-white">{frontendSummary.estimated_distance_m.toFixed(1)} m</span></p><p className="rounded border border-zinc-800 bg-black p-2">Duration<br /><span className="text-lg text-white">{frontendSummary.estimated_duration_s.toFixed(1)} s</span></p><p className="rounded border border-zinc-800 bg-black p-2">Highest altitude<br /><span className="text-lg text-white">{frontendSummary.max_altitude_m} m</span></p><p className="rounded border border-zinc-800 bg-black p-2">Lowest altitude<br /><span className="text-lg text-white">{frontendSummary.min_altitude_m} m</span></p><p className="rounded border border-zinc-800 bg-black p-2">Vehicle<br /><span className="text-white">{selectedMission?.vehicle_type ?? vehicleType}</span></p><p className="rounded border border-zinc-800 bg-black p-2">Lost link<br /><span className="text-white">{selectedMission?.lost_link_action ?? lostLinkAction}</span></p></div><p className={`mt-3 text-sm ${validation?.valid ? 'text-emerald-300' : validation ? 'text-red-300' : 'text-zinc-400'}`}>Validation result: {validation ? `${validation.status} (${validation.valid ? 'valid' : 'invalid'})` : 'not run'}</p></div>
     </section>
 
     <section className="grid gap-4 xl:grid-cols-2">
@@ -257,28 +314,51 @@ export default function MapMission({ drone, telemetry, profiles }: { drone?: Dro
           <span className="rounded border border-zinc-700 px-2 py-1 text-xs text-zinc-300">{simulation?.state ?? 'IDLE'}</span>
         </div>
         <p className="mt-2 text-sm text-zinc-400">Simulation moves mock telemetry along draft waypoints only. It does not upload missions or send MAVLink commands.</p>
-        <div className="mt-3 flex gap-2">
+        <div className="mt-3 flex flex-wrap gap-2">
           <button onClick={startSimulation} disabled={!selectedMissionId} className="rounded border border-zinc-600 px-3 py-2 text-xs uppercase text-white">Start Simulation</button>
-          <button onClick={stopSimulation} disabled={!selectedMissionId} className="rounded border border-zinc-600 px-3 py-2 text-xs uppercase text-white">Stop Simulation</button>
+          <button onClick={pauseSimulation} disabled={!selectedMissionId} className="rounded border border-zinc-600 px-3 py-2 text-xs uppercase text-white">Pause</button>
+          <button onClick={resumeSimulation} disabled={!selectedMissionId} className="rounded border border-zinc-600 px-3 py-2 text-xs uppercase text-white">Resume</button>
+          <button onClick={stopSimulation} disabled={!selectedMissionId} className="rounded border border-zinc-600 px-3 py-2 text-xs uppercase text-white">Stop</button>
+          <button onClick={resetSimulation} disabled={!selectedMissionId} className="rounded border border-zinc-600 px-3 py-2 text-xs uppercase text-white">Reset</button>
         </div>
+        <p className="mt-2 text-xs text-zinc-500">Current mission: {selectedMission?.name ?? 'none'}</p>
         <p className="mt-2 text-xs text-zinc-500">{simulation?.message ?? 'Select a mission to view simulation status.'} Waypoint {simulation ? simulation.active_waypoint_index + 1 : 0} / {simulation?.waypoint_count ?? waypoints.length}</p>
+        <p className="mt-2 text-xs text-zinc-500">Latest event: {latestMissionEvent ? `${latestMissionEvent.event_type} / ${latestMissionEvent.message}` : 'none'}</p>
         <p className="mt-2 text-xs text-zinc-500">Flight track points loaded: {trackPoints.length}</p>
       </div>
       <div className="rounded border border-zinc-800 bg-zinc-950 p-4">
-        <h3 className="text-sm font-semibold uppercase tracking-widest text-zinc-300">Mission event timeline</h3>
+        <div className="flex items-center justify-between gap-3"><h3 className="text-sm font-semibold uppercase tracking-widest text-zinc-300">Mission event timeline</h3><input value={eventFilter} onChange={(event) => setEventFilter(event.target.value)} placeholder="Filter event/severity" className="rounded border border-zinc-700 bg-black px-2 py-1 text-xs text-zinc-200" /></div>
         <div className="mt-3 max-h-56 overflow-auto">
           <table className="w-full text-left text-xs">
             <thead className="text-zinc-500"><tr><th className="p-2">Time</th><th className="p-2">Event</th><th className="p-2">Severity</th><th className="p-2">Message</th></tr></thead>
-            <tbody>{events.map((event) => <tr key={event.id} className="border-t border-zinc-800"><td className="p-2">{new Date(event.timestamp).toLocaleTimeString()}</td><td className="p-2 text-white">{event.event_type}</td><td className="p-2">{event.severity}</td><td className="p-2 text-zinc-300">{event.message}</td></tr>)}</tbody>
+            <tbody>{filteredEvents.map((event) => <tr key={event.id} className="border-t border-zinc-800"><td className="p-2">{new Date(event.timestamp).toLocaleTimeString()}</td><td className="p-2 text-white">{event.event_type}</td><td className="p-2">{event.severity}</td><td className="p-2 text-zinc-300">{event.message}</td></tr>)}</tbody>
           </table>
-          {events.length === 0 && <p className="p-3 text-sm text-zinc-500">No mission events recorded.</p>}
+          {filteredEvents.length === 0 && <p className="p-3 text-sm text-zinc-500">No matching mission events recorded.</p>}
         </div>
+      </div>
+    </section>
+
+
+
+    <section className="grid gap-4 xl:grid-cols-2">
+      <div className="rounded border border-zinc-800 bg-zinc-950 p-4">
+        <h3 className="text-sm font-semibold uppercase tracking-widest text-zinc-300">Mission export / report</h3>
+        <div className="mt-3 flex flex-wrap gap-2"><button onClick={exportMissionJson} disabled={!selectedMissionId} className="rounded border border-zinc-600 px-3 py-2 text-xs uppercase text-white">Export Mission JSON</button><button onClick={generateMissionReport} disabled={!selectedMissionId} className="rounded border border-zinc-600 px-3 py-2 text-xs uppercase text-white">Generate Mission Report</button></div>
+        <textarea value={missionJson} onChange={(event) => setMissionJson(event.target.value)} className="mt-3 h-56 w-full rounded border border-zinc-800 bg-black p-3 font-mono text-xs text-zinc-200" placeholder="Export or report JSON appears here." />
+        <p className="mt-2 text-xs text-zinc-500">Report status: {report ? `${report.status} / ${report.waypoint_count} waypoints / hardware_upload_enabled=${report.hardware_upload_enabled}` : 'not generated'}</p>
+      </div>
+      <div className="rounded border border-zinc-800 bg-zinc-950 p-4">
+        <h3 className="text-sm font-semibold uppercase tracking-widest text-zinc-300">Mission import panel</h3>
+        <p className="mt-2 text-sm text-zinc-400">Import accepts PRAMAAN_X_MISSION_DRAFT_V1 JSON only. Imported missions remain draft-only and are validated after import.</p>
+        <textarea value={importJson} onChange={(event) => setImportJson(event.target.value)} className="mt-3 h-56 w-full rounded border border-zinc-800 bg-black p-3 font-mono text-xs text-zinc-200" placeholder="Paste exported mission JSON here." />
+        <button onClick={importMissionDraft} className="mt-3 rounded border border-zinc-600 px-3 py-2 text-xs uppercase text-white">Import Draft Mission</button>
+        {importMessage && <p className="mt-2 text-xs text-zinc-400">{importMessage}</p>}
       </div>
     </section>
 
     <section className="grid gap-4 xl:grid-cols-2">
       <div className="rounded border border-zinc-800 bg-zinc-950 p-4"><h3 className="text-sm font-semibold uppercase tracking-widest text-zinc-300">Validation warnings</h3><div className="mt-3 space-y-2 text-sm">{validation?.errors.map((item) => <p key={item} className="rounded border border-red-900/70 bg-red-950/20 p-2 text-red-200">Error: {item}</p>)}{[...localWarnings, ...(validation?.warnings ?? [])].map((item) => <p key={item} className="rounded border border-amber-900/70 bg-amber-950/20 p-2 text-amber-100">Warning: {item}</p>)}</div></div>
-      <div className="rounded border border-zinc-800 bg-zinc-950 p-4"><div className="flex items-center justify-between"><h3 className="text-sm font-semibold uppercase tracking-widest text-zinc-300">Geofence panel</h3><button onClick={createDraftGeofence} className="rounded border border-zinc-600 px-3 py-2 text-xs uppercase text-white">Create draft polygon</button></div><div className="mt-3 space-y-2 text-sm text-zinc-400"><p>Status: <span className="text-zinc-100">{activeGeofence ? `${activeGeofence.name} / ${activeGeofence.enabled ? 'enabled draft' : 'disabled draft'}` : 'No draft geofence available'}</span></p><p>Polygon preview points: <span className="text-zinc-100">{geofencePolygon.length}</span></p><p>Geofence is draft-only in Stage 1.2. No hardware enforcement.</p><p className="text-xs text-zinc-500">Selected mission: {selectedMission?.mission_id ?? 'none'}</p></div></div>
+      <div className="rounded border border-zinc-800 bg-zinc-950 p-4"><div className="flex items-center justify-between"><h3 className="text-sm font-semibold uppercase tracking-widest text-zinc-300">Geofence panel</h3><button onClick={createDraftGeofence} className="rounded border border-zinc-600 px-3 py-2 text-xs uppercase text-white">Create draft polygon</button></div><div className="mt-3 space-y-2 text-sm text-zinc-400"><p>Status: <span className="text-zinc-100">{activeGeofence ? `${activeGeofence.name} / ${activeGeofence.enabled ? 'enabled draft' : 'disabled draft'}` : 'No draft geofence available'}</span></p><p>Polygon preview points: <span className="text-zinc-100">{geofencePolygon.length}</span></p><p>Geofence is draft-only in Stage 1.6. No hardware enforcement.</p><p className="text-xs text-zinc-500">Selected mission: {selectedMission?.mission_id ?? 'none'}</p></div></div>
     </section>
   </div>;
 }

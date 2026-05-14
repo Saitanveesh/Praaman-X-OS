@@ -124,3 +124,35 @@ class MissionSimulationStatusRead(BaseModel):
     active_waypoint_index: int = 0
     waypoint_count: int = 0
     message: str = ""
+
+class MissionExportRead(BaseModel):
+    format: str
+    mission: MissionDraftRead
+    waypoints: list[MapWaypointRead]
+    validation: MissionValidationRead
+    exported_at: datetime
+    hardware_upload_enabled: bool = False
+
+
+class MissionImportPayload(BaseModel):
+    format: str
+    mission: dict
+    waypoints: list[dict] = []
+
+
+class MissionReportRead(BaseModel):
+    mission_id: str
+    name: str
+    drone_id: str
+    vehicle_type: str
+    status: str
+    waypoint_count: int
+    estimated_distance_m: float
+    estimated_duration_s: float
+    max_altitude_m: float
+    min_altitude_m: float
+    lost_link_action: str
+    validation_errors: list[str]
+    validation_warnings: list[str]
+    simulation_only: bool = True
+    hardware_upload_enabled: bool = False

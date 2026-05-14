@@ -1,4 +1,5 @@
 import math
+from datetime import datetime, timezone
 from uuid import uuid4
 
 from sqlalchemy.orm import Session
@@ -7,7 +8,7 @@ from app.core.enums import MissionDraftStatus, MissionEventType, VehicleType, Wa
 from app.models.drone import Drone
 from app.models.mission import MapWaypoint, MissionDraft, MissionEvent
 from app.models.vehicle_profile import VehicleProfile
-from app.schemas.mission import MapWaypointCreate, MissionDraftCreate, MissionRouteSummary, MissionValidationRead
+from app.schemas.mission import MapWaypointCreate, MissionDraftCreate, MissionExportRead, MissionImportPayload, MissionReportRead, MissionRouteSummary, MissionValidationRead
 
 
 class MissionDraftService:
@@ -32,6 +33,78 @@ class MissionDraftService:
 
     def get_mission(self, db: Session, mission_id: str) -> MissionDraft | None:
         return db.query(MissionDraft).filter(MissionDraft.mission_id == mission_id).first()
+
+    def export_mission(self, db: Session, mission_id: str) -> MissionExportRead | None:
+        mission = self.get_mission(db, mission_id)
+        if not mission:
+            return None
+        validation = self.validate_mission(db, mission_id)
+        if validation is None:
+            return None
+        return MissionExportRead(
+            format="PRAMAAN_X_MISSION_DRAFT_V1",
+            mission=mission,
+            waypoints=self.list_waypoints(db, mission_id),
+            validation=validation,
+            exported_at=datetime.now(timezone.utc),
+            hardware_upload_enabled=False,
+        )
+
+    def import_mission(self, db: Session, payload: MissionImportPayload) -> MissionDraft | None:
+        if payload.format != "PRAMAAN_X_MISSION_DRAFT_V1":
+            return None
+        mission_data = dict(payload.mission)
+        mission_data["mission_id"] = f"mission-{uuid4().hex[:10]}"
+        mission_payload = MissionDraftCreate(**mission_data)
+        mission = self.create_mission(db, mission_payload)
+        for index, waypoint in enumerate(payload.waypoints, start=1):
+            waypoint_data = dict(waypoint)
+            waypoint_data["sequence"] = waypoint_data.get("sequence") or index
+            self.add_waypoint(db, mission.mission_id, MapWaypointCreate(**waypoint_data))
+        self.validate_mission(db, mission.mission_id)
+        db.add(MissionEvent(
+            mission_id=mission.mission_id,
+            drone_id=mission.drone_id,
+            event_type="MISSION_IMPORTED",
+            severity="INFO",
+            message="Mission draft imported as draft-only JSON. No hardware upload is available.",
+            details="format=PRAMAAN_X_MISSION_DRAFT_V1|hardware_upload_enabled=false",
+        ))
+        db.commit()
+        db.refresh(mission)
+        return mission
+
+    def mission_report(self, db: Session, mission_id: str) -> MissionReportRead | None:
+        mission = self.get_mission(db, mission_id)
+        if not mission:
+            return None
+        validation = self.validate_mission(db, mission_id)
+        if validation is None:
+            return None
+        summary = validation.summary
+        warnings = list(validation.warnings)
+        estimated_duration_s = 0.0
+        if mission.default_speed_mps > 0:
+            estimated_duration_s = round(summary.estimated_distance_m / mission.default_speed_mps, 2)
+        else:
+            warnings.append("Default speed is invalid; estimated duration returned as 0.")
+        return MissionReportRead(
+            mission_id=mission.mission_id,
+            name=mission.name,
+            drone_id=mission.drone_id,
+            vehicle_type=mission.vehicle_type,
+            status=mission.status,
+            waypoint_count=summary.waypoint_count,
+            estimated_distance_m=summary.estimated_distance_m,
+            estimated_duration_s=estimated_duration_s,
+            max_altitude_m=summary.max_altitude_m,
+            min_altitude_m=summary.min_altitude_m,
+            lost_link_action=mission.lost_link_action,
+            validation_errors=validation.errors,
+            validation_warnings=warnings,
+            simulation_only=True,
+            hardware_upload_enabled=False,
+        )
 
     def add_waypoint(self, db: Session, mission_id: str, payload: MapWaypointCreate) -> MapWaypoint | None:
         mission = self.get_mission(db, mission_id)
