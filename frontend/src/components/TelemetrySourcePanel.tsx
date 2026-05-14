@@ -22,7 +22,7 @@ export default function TelemetrySourcePanel({ compact = false }: { compact?: bo
       setActive(selected);
       setSources(await api.telemetrySources());
       if (source === 'MAVLINK_READ_ONLY') {
-        const status = await api.mavlinkReadonlyConnect();
+        const status = await api.mavlinkReadonlyConnect({ host: mavlink?.host ?? '127.0.0.1', port: mavlink?.port ?? 14550, protocol: mavlink?.protocol ?? 'UDP' });
         if (status.ok === false) setWarning(String(status.last_error ?? 'MAVLink read-only provider is not connected.'));
       }
     } catch (error) {

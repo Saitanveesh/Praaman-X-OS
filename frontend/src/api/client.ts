@@ -3,7 +3,7 @@ import type { Command, CommandType } from '../types/command';
 import type { Drone } from '../types/drone';
 import type { Telemetry } from '../types/telemetry';
 import type { VehicleProfile } from '../types/profile';
-import type { BridgeStatus, C2ConnectionConfig, GeofenceDraft, IntelligenceSummary, MapWaypoint, MapWaypointCreate, MAVLinkEndpoint, MissionDraft, MissionDraftCreate, MissionEvent, MissionExport, MissionImportPayload, MissionReport, MissionRouteSummary, MissionSimulationStatus, MissionValidation, SITLReadiness, SystemStatus, TelemetrySource, TelemetrySourceConfig } from '../types/mission';
+import type { BridgeStatus, C2ConnectionConfig, GeofenceDraft, IntelligenceSummary, MapWaypoint, MapWaypointCreate, MAVLinkEndpoint, MAVLinkReadonlyStatus, MissionDraft, MissionDraftCreate, MissionEvent, MissionExport, MissionImportPayload, MissionReport, MissionRouteSummary, MissionSimulationStatus, MissionValidation, SITLReadiness, SystemStatus, TelemetrySource, TelemetrySourceConfig } from '../types/mission';
 
 const API_BASE = import.meta.env.VITE_API_BASE ?? 'http://localhost:8000';
 
@@ -33,9 +33,9 @@ export const api = {
   telemetrySources: () => getJson<TelemetrySourceConfig[]>('/api/telemetry-sources'),
   activeTelemetrySource: () => getJson<TelemetrySourceConfig>('/api/telemetry-sources/active'),
   setTelemetrySource: (source_type: TelemetrySource) => postJson<TelemetrySourceConfig>('/api/telemetry-sources/active', { source_type }),
-  mavlinkReadonlyStatus: () => getJson<Record<string, unknown>>('/api/mavlink-readonly/status'),
-  mavlinkReadonlyConnect: () => postJson<Record<string, unknown>>('/api/mavlink-readonly/connect', {}),
-  mavlinkReadonlyDisconnect: () => postJson<Record<string, unknown>>('/api/mavlink-readonly/disconnect', {}),
+  mavlinkReadonlyStatus: () => getJson<MAVLinkReadonlyStatus>('/api/mavlink-readonly/status'),
+  mavlinkReadonlyConnect: (payload: { host: string; port: number; protocol: string }) => postJson<MAVLinkReadonlyStatus>('/api/mavlink-readonly/connect', payload),
+  mavlinkReadonlyDisconnect: () => postJson<MAVLinkReadonlyStatus>('/api/mavlink-readonly/disconnect', {}),
   sitlReadiness: () => getJson<SITLReadiness>('/api/sitl/readiness'),
   systemStatus: () => getJson<SystemStatus>('/api/system/status'),
   telemetryIntelligence: (droneId: string) => getJson<IntelligenceSummary>(`/api/intelligence/summary/${droneId}`),

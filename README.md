@@ -291,3 +291,61 @@ pytest
 cd frontend
 npm run build
 ```
+
+## Stage 2.0: Real MAVLink Read-Only Integration Layer
+
+Stage 2.0 adds the first real telemetry-observation path for Pramaan-X Intelligent C2 OS while preserving Shauryan Aerospace's command-safety boundary. The default telemetry source is still `MOCK`; operators must explicitly connect and switch to `MAVLINK_READ_ONLY` before real MAVLink telemetry can be used.
+
+Safety guarantees in Stage 2.0:
+
+- `MAVLINK_READ_ONLY` can receive telemetry from ArduPilot SITL, MAVProxy, or MAVLink Router forwarded UDP streams.
+- No commands are sent to SITL or hardware.
+- No real `ARM`, `TAKEOFF`, `DISARM`, `LAND`, `RTL`, mission upload, mode change, parameter write, payload control, or MAVLink command transmit path is implemented.
+- Mission Planner remains the setup/calibration tool for firmware, frame setup, sensors, radio, ESC/motor testing, parameters, and initial failsafes.
+- Pramaan-X OS is now able to observe a real MAVLink telemetry stream and map it into the existing telemetry, history, dashboard intelligence, and map/mission flight-track panels.
+- Mission simulation remains separated from MAVLink telemetry and is available only with the `MOCK` telemetry source.
+- TCP is structured as an experimental disabled placeholder, and SERIAL is reserved for a future Pixhawk bench read-only adapter.
+- Future Stage 2.1 will test the read-only path with ArduPilot SITL.
+- Future Stage 3 will test Pixhawk bench read-only telemetry and later secure PUFShield integration without making Stage 2.0 dependent on PUF hardware.
+
+Stage 2.0 MAVLink read-only provider behavior:
+
+- UDP uses a receive-oriented `udpin:127.0.0.1:14550` listener pattern for SITL/MAVProxy/MAVLink Router output.
+- Parsed MAVLink messages include `HEARTBEAT`, `GLOBAL_POSITION_INT`, `VFR_HUD`, `SYS_STATUS`, `GPS_RAW_INT`, `ATTITUDE`, and `BATTERY_STATUS`.
+- Parsed fields are mapped to the existing telemetry schema: `drone_id`, `lat`, `lon`, `altitude_m`, `speed_mps`, `heading_deg`, `battery_percent`, `mode`, `armed`, `gps_status`, `link_state`, `mission_state`, `warnings`, and `timestamp`.
+- Missing fields keep the backend alive and add `MAVLINK_PARTIAL_TELEMETRY` until a complete set of messages has been observed.
+- Audit events record telemetry source switching, MAVLink read-only connect/disconnect, provider errors, and the first telemetry message after activation without logging every telemetry frame.
+
+Stage 2.0 backend endpoints:
+
+- `GET /api/telemetry-sources`
+- `GET /api/telemetry-sources/active`
+- `POST /api/telemetry-sources/active`
+- `GET /api/mavlink-readonly/status`
+- `POST /api/mavlink-readonly/connect`
+- `POST /api/mavlink-readonly/disconnect`
+- `GET /api/telemetry/latest/{drone_id}`
+- `GET /api/telemetry/history/{drone_id}`
+- `GET /api/sitl/readiness`
+
+Local Stage 2.0 usage, with SITL setup external/manual:
+
+1. Start backend.
+2. Start frontend.
+3. Start ArduPilot SITL separately.
+4. Configure SITL/MAVProxy to output MAVLink UDP to `127.0.0.1:14550`.
+5. In Pramaan-X OS, open Mission Planner Bridge.
+6. Connect MAVLink Read-Only.
+7. Switch telemetry source to `MAVLINK_READ_ONLY`.
+8. Verify dashboard updates from the MAVLink stream.
+
+Documentation-only external SITL/MAVProxy examples:
+
+```bash
+sim_vehicle.py -v ArduCopter --console --map --out=127.0.0.1:14550
+mavproxy.py --master=udp:127.0.0.1:14550 --out=127.0.0.1:14551
+```
+
+These commands are not run by Pramaan-X OS. They are setup examples only and do not grant Pramaan-X OS command authority.
+
+Safety verification: no real MAVLink command sending implemented.

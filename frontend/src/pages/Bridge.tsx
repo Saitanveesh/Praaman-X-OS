@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api/client';
 import TelemetrySourcePanel from '../components/TelemetrySourcePanel';
-import type { BridgeStatus, C2ConnectionConfig, C2ConnectionMode, MAVLinkEndpoint } from '../types/mission';
+import type { BridgeStatus, C2ConnectionConfig, C2ConnectionMode, MAVLinkEndpoint, MAVLinkReadonlyStatus } from '../types/mission';
 
 const modes: C2ConnectionMode[] = ['SETUP_MODE', 'OPS_MONITOR_MODE', 'PRAMAAN_CONTROL_MODE', 'FUTURE_SECURE_CONTROL_MODE'];
 
@@ -9,12 +9,21 @@ export default function Bridge() {
   const [status, setStatus] = useState<BridgeStatus>();
   const [mode, setMode] = useState<C2ConnectionConfig>();
   const [endpoints, setEndpoints] = useState<MAVLinkEndpoint[]>([]);
+  const [mavlinkStatus, setMavlinkStatus] = useState<MAVLinkReadonlyStatus>();
+  const [host, setHost] = useState('127.0.0.1');
+  const [port, setPort] = useState(14550);
+  const [protocol, setProtocol] = useState('UDP');
+  const [mavlinkMessage, setMavlinkMessage] = useState('');
 
   async function refresh() {
-    const [bridgeStatus, connectionMode, bridgeEndpoints] = await Promise.all([api.bridgeStatus(), api.connectionMode(), api.bridgeEndpoints()]);
+    const [bridgeStatus, connectionMode, bridgeEndpoints, readonlyStatus] = await Promise.all([api.bridgeStatus(), api.connectionMode(), api.bridgeEndpoints(), api.mavlinkReadonlyStatus()]);
     setStatus(bridgeStatus);
     setMode(connectionMode);
     setEndpoints(bridgeEndpoints);
+    setMavlinkStatus(readonlyStatus);
+    setHost(readonlyStatus.host ?? '127.0.0.1');
+    setPort(readonlyStatus.port ?? 14550);
+    setProtocol(readonlyStatus.protocol ?? 'UDP');
   }
 
   useEffect(() => { refresh(); }, []);
@@ -24,11 +33,54 @@ export default function Bridge() {
     setStatus(await api.bridgeStatus());
   }
 
+  async function connectMavlinkReadonly() {
+    setMavlinkMessage('');
+    const result = await api.mavlinkReadonlyConnect({ host, port, protocol });
+    setMavlinkStatus(result);
+    if (result.ok === false || result.last_error) setMavlinkMessage(result.last_error ?? 'MAVLink read-only listener did not connect.');
+  }
+
+  async function disconnectMavlinkReadonly() {
+    setMavlinkStatus(await api.mavlinkReadonlyDisconnect());
+  }
+
+  async function useSource(source: 'MOCK' | 'MAVLINK_READ_ONLY') {
+    await api.setTelemetrySource(source);
+    await refresh();
+  }
+
   return <div className="space-y-4 text-zinc-200">
     <section className="rounded border border-amber-700/60 bg-amber-950/20 p-4 text-sm text-amber-100">
       Stage 1.4–1.6 is read-only and simulation-only. No real flight-controller commands are sent. Mission drafts and simulations do not upload to hardware.
     </section>
     <TelemetrySourcePanel />
+
+    <section className="rounded border border-zinc-800 bg-zinc-950 p-4">
+      <div className="rounded border border-amber-700/60 bg-amber-950/20 p-3 text-sm text-amber-100">Read-only mode. Pramaan-X OS does not send MAVLink commands in Stage 2.0.</div>
+      <div className="mt-4 flex items-center justify-between gap-3">
+        <div><p className="text-xs uppercase tracking-[0.25em] text-zinc-500">MAVLink Read-Only Connection</p><h3 className="mt-1 text-lg font-semibold text-white">SITL / MAVProxy UDP listener</h3></div>
+        <span className="rounded border border-zinc-700 px-2 py-1 text-xs uppercase text-zinc-300">{mavlinkStatus?.connected ? 'CONNECTED' : 'DISCONNECTED'}</span>
+      </div>
+      <div className="mt-4 grid gap-3 md:grid-cols-3">
+        <label className="text-xs uppercase tracking-widest text-zinc-500">Host<input value={host} onChange={(event) => setHost(event.target.value)} className="mt-1 w-full rounded border border-zinc-700 bg-black px-3 py-2 text-sm text-white" /></label>
+        <label className="text-xs uppercase tracking-widest text-zinc-500">Port<input type="number" value={port} onChange={(event) => setPort(Number(event.target.value))} className="mt-1 w-full rounded border border-zinc-700 bg-black px-3 py-2 text-sm text-white" /></label>
+        <label className="text-xs uppercase tracking-widest text-zinc-500">Protocol<select value={protocol} onChange={(event) => setProtocol(event.target.value)} className="mt-1 w-full rounded border border-zinc-700 bg-black px-3 py-2 text-sm text-white"><option>UDP</option><option>TCP</option><option>SERIAL</option></select></label>
+      </div>
+      <div className="mt-4 flex flex-wrap gap-2">
+        <button onClick={connectMavlinkReadonly} className="rounded border border-zinc-600 px-3 py-2 text-xs uppercase text-white">Connect MAVLink Read-Only</button>
+        <button onClick={disconnectMavlinkReadonly} className="rounded border border-zinc-600 px-3 py-2 text-xs uppercase text-white">Disconnect</button>
+        <button onClick={() => useSource('MAVLINK_READ_ONLY')} className="rounded border border-zinc-600 px-3 py-2 text-xs uppercase text-white">Use MAVLink Read-Only Source</button>
+        <button onClick={() => useSource('MOCK')} className="rounded border border-zinc-600 px-3 py-2 text-xs uppercase text-white">Use Mock Source</button>
+      </div>
+      <div className="mt-4 grid gap-2 text-xs text-zinc-400 md:grid-cols-2">
+        <p>Read-only enforced: <span className="text-zinc-100">{mavlinkStatus?.read_only ? 'true' : 'true'}</span></p>
+        <p>Command sending enabled: <span className="text-zinc-100">{mavlinkStatus?.commands_enabled ? 'true' : 'false'}</span></p>
+        <p>Endpoint: <span className="text-zinc-100">{mavlinkStatus?.endpoint ?? 'udpin:127.0.0.1:14550'}</span></p>
+        <p>Last MAVLink message: <span className="text-zinc-100">{mavlinkStatus?.last_message_time ?? 'none'}</span></p>
+        <p className="md:col-span-2">Parsed message counts: <span className="text-zinc-100">{mavlinkStatus ? Object.entries(mavlinkStatus.message_counts).map(([key, value]) => `${key}:${value}`).join(' / ') : 'none'}</span></p>
+        {(mavlinkMessage || mavlinkStatus?.last_error) && <p className="rounded border border-amber-900/70 bg-amber-950/20 p-2 text-amber-100 md:col-span-2">Last error: {mavlinkMessage || mavlinkStatus?.last_error}</p>}
+      </div>
+    </section>
     <section className="rounded border border-zinc-800 bg-zinc-950 p-4">
       <p className="text-xs uppercase tracking-[0.25em] text-zinc-500">Mission Planner Bridge</p>
       <h2 className="mt-2 text-xl font-semibold text-white">Compatibility and authority separation</h2>

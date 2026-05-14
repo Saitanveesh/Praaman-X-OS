@@ -14,3 +14,8 @@ class SITLReadiness(BaseModel):
     checklist: list[str]
     warnings: list[str]
     recommended_next_step: str
+    sitl_supported: bool
+    mavlink_readonly_supported: bool
+    recommended_sitl_out: str
+    mission_planner_coexistence: bool
+    documentation_only_commands: list[str]

@@ -22,6 +22,10 @@ class TelemetrySourceConfig(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
+    @property
+    def active_source(self) -> str:
+        return self.source_type
+
     @classmethod
     def mock_default(cls) -> "TelemetrySourceConfig":
         return cls(

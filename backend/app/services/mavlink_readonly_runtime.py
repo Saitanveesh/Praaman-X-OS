@@ -1,0 +1,3 @@
+from app.plugins.mavlink_readonly_provider import MAVLinkReadOnlyProvider
+
+mavlink_readonly_provider = MAVLinkReadOnlyProvider()

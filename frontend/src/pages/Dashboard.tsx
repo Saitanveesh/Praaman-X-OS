@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { Command } from '../types/command';
 import type { Drone } from '../types/drone';
-import type { IntelligenceSummary, SystemStatus } from '../types/mission';
+import type { IntelligenceSummary, MAVLinkReadonlyStatus, SystemStatus, TelemetrySourceConfig } from '../types/mission';
 import type { Telemetry } from '../types/telemetry';
 import { api } from '../api/client';
 import CommandPanel from '../components/CommandPanel';
@@ -12,9 +12,19 @@ import TelemetrySourcePanel from '../components/TelemetrySourcePanel';
 export default function Dashboard({ drone, telemetry, lastCommand, onCommand }: { drone?: Drone; telemetry?: Telemetry; lastCommand?: Command; onCommand: (command: Command) => void }) {
   const [systemStatus, setSystemStatus] = useState<SystemStatus>();
   const [intelligence, setIntelligence] = useState<IntelligenceSummary>();
+  const [activeSource, setActiveSource] = useState<TelemetrySourceConfig>();
+  const [mavlinkStatus, setMavlinkStatus] = useState<MAVLinkReadonlyStatus>();
 
   useEffect(() => {
     api.systemStatus().then(setSystemStatus).catch(() => undefined);
+    api.activeTelemetrySource().then(setActiveSource).catch(() => undefined);
+    api.mavlinkReadonlyStatus().then(setMavlinkStatus).catch(() => undefined);
+    const timer = window.setInterval(() => {
+      api.systemStatus().then(setSystemStatus).catch(() => undefined);
+      api.activeTelemetrySource().then(setActiveSource).catch(() => undefined);
+      api.mavlinkReadonlyStatus().then(setMavlinkStatus).catch(() => undefined);
+    }, 3000);
+    return () => window.clearInterval(timer);
   }, []);
 
   useEffect(() => {
@@ -55,6 +65,12 @@ export default function Dashboard({ drone, telemetry, lastCommand, onCommand }: 
         <p className="mt-2 text-xs text-zinc-500">Future PUFShield integration remains unavailable and is not a Stage 1 dependency.</p>
       </Panel>
     </section>
+
+    {activeSource?.source_type === 'MAVLINK_READ_ONLY' && <section className="rounded border border-blue-900/60 bg-blue-950/10 p-4 text-sm text-zinc-300">
+      <div className="flex flex-wrap items-center justify-between gap-3"><span className="rounded border border-blue-700 px-2 py-1 text-xs uppercase text-blue-100">Telemetry Source: MAVLINK_READ_ONLY</span><span>Read-only enforced: {mavlinkStatus?.read_only ? 'true' : 'true'}</span></div>
+      <div className="mt-2 grid gap-2 text-xs md:grid-cols-3"><p>MAVLink status: <span className="text-zinc-100">{mavlinkStatus?.connected ? 'CONNECTED' : 'DISCONNECTED'}</span></p><p>Last MAVLink update: <span className="text-zinc-100">{mavlinkStatus?.last_message_time ?? 'none'}</span></p><p>Endpoint: <span className="text-zinc-100">{mavlinkStatus?.endpoint ?? 'udpin:127.0.0.1:14550'}</span></p></div>
+      {(!mavlinkStatus?.connected || activeSource.status === 'ERROR') && <p className="mt-2 rounded border border-amber-900/70 bg-amber-950/20 p-2 text-xs text-amber-100">MAVLink stream unavailable. Switch back to MOCK or check SITL/MAVProxy output.</p>}
+    </section>}
     <TelemetrySourcePanel compact />
     <TelemetryPanel drone={drone} telemetry={telemetry} />
     <div className="grid gap-4 lg:grid-cols-2"><WarningPanel telemetry={telemetry} lastCommand={lastCommand} />{drone && <CommandPanel droneId={drone.drone_id} onCommand={onCommand} />}</div>
