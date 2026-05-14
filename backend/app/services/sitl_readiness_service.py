@@ -30,8 +30,16 @@ class SITLReadinessService:
                 "Do not enable hardware command execution in Stage 1.",
             ],
             warnings=[
-                "Documentation/checklist only: Pramaan-X OS does not launch SITL in Stage 1.4.",
+                "Documentation/checklist only: Pramaan-X OS does not launch SITL in Stage 2.0.",
                 "MAVLink command sending and mission upload remain disabled.",
             ],
-            recommended_next_step="Run mock telemetry demo first; later connect read-only SITL telemetry through a router without enabling command transport.",
+            recommended_next_step="Start SITL externally, route UDP MAVLink to 127.0.0.1:14550, then connect MAVLink Read-Only from Pramaan-X OS.",
+            sitl_supported=True,
+            mavlink_readonly_supported=True,
+            recommended_sitl_out="127.0.0.1:14550",
+            mission_planner_coexistence=True,
+            documentation_only_commands=[
+                "sim_vehicle.py -v ArduCopter --console --map --out=127.0.0.1:14550",
+                "mavproxy.py --master=udp:127.0.0.1:14550 --out=127.0.0.1:14551",
+            ],
         )

@@ -36,7 +36,7 @@ class TelemetrySourceService:
         db.add(MissionEvent(
             mission_id="SYSTEM",
             drone_id="PX-QD-001",
-            event_type=MissionEventType.SOURCE_SWITCHED.value,
+            event_type=MissionEventType.TELEMETRY_SOURCE_SWITCHED.value,
             severity="INFO",
             message=f"Telemetry source switched to {source_type.value}. Read-only mode remains enforced.",
             details=f"source_type={source_type.value}",
@@ -73,6 +73,33 @@ class TelemetrySourceService:
             message=f"Read-only MAVLink provider error: {error[:180]}",
             details=error[:512],
         ))
+        db.commit()
+        db.refresh(source)
+        return source
+    def update_source_endpoint(self, db: Session, source_type: TelemetrySource, host: str, port: int, protocol: str) -> TelemetrySourceConfig | None:
+        self.ensure_defaults_without_recursion(db)
+        source = db.query(TelemetrySourceConfig).filter(TelemetrySourceConfig.source_type == source_type.value).first()
+        if not source:
+            return None
+        source.host = host
+        source.port = port
+        source.protocol = protocol.upper()
+        source.read_only = True
+        source.updated_at = datetime.now(timezone.utc)
+        db.commit()
+        db.refresh(source)
+        return source
+
+    def mark_source_inactive_ready(self, db: Session, source_type: TelemetrySource) -> TelemetrySourceConfig | None:
+        self.ensure_defaults_without_recursion(db)
+        source = db.query(TelemetrySourceConfig).filter(TelemetrySourceConfig.source_type == source_type.value).first()
+        if not source:
+            return None
+        if source.status != TelemetrySourceStatus.ACTIVE.value:
+            source.status = TelemetrySourceStatus.INACTIVE.value
+        source.last_error = None
+        source.read_only = True
+        source.updated_at = datetime.now(timezone.utc)
         db.commit()
         db.refresh(source)
         return source

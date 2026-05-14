@@ -106,6 +106,7 @@ export default function MapMission({ drone, telemetry, profiles }: { drone?: Dro
   }, [eventFilter, events]);
 
   const latestMissionEvent = events[events.length - 1];
+  const isMavlinkSource = activeSource?.source_type === 'MAVLINK_READ_ONLY';
 
   const localWarnings = useMemo(() => {
     const warnings: string[] = [];
@@ -196,31 +197,31 @@ export default function MapMission({ drone, telemetry, profiles }: { drone?: Dro
   }
 
   async function startSimulation() {
-    if (!selectedMissionId) return;
+    if (!selectedMissionId || isMavlinkSource) return;
     setSimulation(await api.startMissionSimulation(selectedMissionId));
     setEvents(await api.missionEvents(selectedMissionId));
   }
 
   async function stopSimulation() {
-    if (!selectedMissionId) return;
+    if (!selectedMissionId || isMavlinkSource) return;
     setSimulation(await api.stopMissionSimulation(selectedMissionId));
     setEvents(await api.missionEvents(selectedMissionId));
   }
 
   async function pauseSimulation() {
-    if (!selectedMissionId) return;
+    if (!selectedMissionId || isMavlinkSource) return;
     setSimulation(await api.pauseMissionSimulation(selectedMissionId));
     setEvents(await api.missionEvents(selectedMissionId));
   }
 
   async function resumeSimulation() {
-    if (!selectedMissionId) return;
+    if (!selectedMissionId || isMavlinkSource) return;
     setSimulation(await api.resumeMissionSimulation(selectedMissionId));
     setEvents(await api.missionEvents(selectedMissionId));
   }
 
   async function resetSimulation() {
-    if (!selectedMissionId) return;
+    if (!selectedMissionId || isMavlinkSource) return;
     setSimulation(await api.resetMissionSimulation(selectedMissionId));
     setEvents(await api.missionEvents(selectedMissionId));
   }
@@ -276,7 +277,7 @@ export default function MapMission({ drone, telemetry, profiles }: { drone?: Dro
             {geofencePolygon.length >= 3 && <Polygon positions={geofencePolygon} pathOptions={{ color: '#94a3b8', fillColor: '#64748b', fillOpacity: 0.12, weight: 1 }} />}
           </MapContainer> : <div className="flex h-full items-center justify-center p-6 text-center text-sm text-zinc-400">{mapError}<br />Drone marker fallback: {lat.toFixed(6)}, {lon.toFixed(6)}</div>}
         </div>
-        <p className="mt-3 text-sm text-zinc-400">Drone marker uses latest telemetry for PX-QD-001 when available. Home defaults to Bengaluru coordinates. Mission routes are silver previews; live telemetry history tracks are dashed blue read-only paths.</p>
+        <p className="mt-3 text-sm text-zinc-400">Drone marker uses latest telemetry for PX-QD-001 when available, including MAVLink-derived telemetry when MAVLINK_READ_ONLY is active. Home defaults to Bengaluru coordinates. Mission routes are silver previews; live telemetry history tracks are dashed blue read-only paths.</p>
       </div>
       <div className="rounded border border-zinc-800 bg-zinc-950 p-4">
         <h3 className="text-sm font-semibold uppercase tracking-widest text-zinc-300">Vehicle / safety context</h3>
@@ -285,7 +286,8 @@ export default function MapMission({ drone, telemetry, profiles }: { drone?: Dro
     </section>
 
     <section className="rounded border border-amber-700/60 bg-amber-950/20 p-4 text-sm text-amber-100">
-      Stage 1.4–1.6 is read-only and simulation-only. No real flight-controller commands are sent. Mission drafts and simulations do not upload to hardware.
+      Stage 2.0 read-only safety remains enforced. No real flight-controller commands are sent. Mission drafts do not upload to hardware.
+      {isMavlinkSource && <p className="mt-2">Mission simulation is available only with MOCK telemetry source.</p>}
     </section>
     <TelemetrySourcePanel compact />
 
@@ -315,12 +317,13 @@ export default function MapMission({ drone, telemetry, profiles }: { drone?: Dro
         </div>
         <p className="mt-2 text-sm text-zinc-400">Simulation moves mock telemetry along draft waypoints only. It does not upload missions or send MAVLink commands.</p>
         <div className="mt-3 flex flex-wrap gap-2">
-          <button onClick={startSimulation} disabled={!selectedMissionId} className="rounded border border-zinc-600 px-3 py-2 text-xs uppercase text-white">Start Simulation</button>
-          <button onClick={pauseSimulation} disabled={!selectedMissionId} className="rounded border border-zinc-600 px-3 py-2 text-xs uppercase text-white">Pause</button>
-          <button onClick={resumeSimulation} disabled={!selectedMissionId} className="rounded border border-zinc-600 px-3 py-2 text-xs uppercase text-white">Resume</button>
-          <button onClick={stopSimulation} disabled={!selectedMissionId} className="rounded border border-zinc-600 px-3 py-2 text-xs uppercase text-white">Stop</button>
-          <button onClick={resetSimulation} disabled={!selectedMissionId} className="rounded border border-zinc-600 px-3 py-2 text-xs uppercase text-white">Reset</button>
+          <button onClick={startSimulation} disabled={!selectedMissionId || isMavlinkSource} className="rounded border border-zinc-600 px-3 py-2 text-xs uppercase text-white disabled:opacity-40">Start Simulation</button>
+          <button onClick={pauseSimulation} disabled={!selectedMissionId || isMavlinkSource} className="rounded border border-zinc-600 px-3 py-2 text-xs uppercase text-white disabled:opacity-40">Pause</button>
+          <button onClick={resumeSimulation} disabled={!selectedMissionId || isMavlinkSource} className="rounded border border-zinc-600 px-3 py-2 text-xs uppercase text-white disabled:opacity-40">Resume</button>
+          <button onClick={stopSimulation} disabled={!selectedMissionId || isMavlinkSource} className="rounded border border-zinc-600 px-3 py-2 text-xs uppercase text-white disabled:opacity-40">Stop</button>
+          <button onClick={resetSimulation} disabled={!selectedMissionId || isMavlinkSource} className="rounded border border-zinc-600 px-3 py-2 text-xs uppercase text-white disabled:opacity-40">Reset</button>
         </div>
+        {isMavlinkSource && <p className="mt-2 rounded border border-amber-900/70 bg-amber-950/20 p-2 text-xs text-amber-100">Mission simulation is available only with MOCK telemetry source.</p>}
         <p className="mt-2 text-xs text-zinc-500">Current mission: {selectedMission?.name ?? 'none'}</p>
         <p className="mt-2 text-xs text-zinc-500">{simulation?.message ?? 'Select a mission to view simulation status.'} Waypoint {simulation ? simulation.active_waypoint_index + 1 : 0} / {simulation?.waypoint_count ?? waypoints.length}</p>
         <p className="mt-2 text-xs text-zinc-500">Latest event: {latestMissionEvent ? `${latestMissionEvent.event_type} / ${latestMissionEvent.message}` : 'none'}</p>

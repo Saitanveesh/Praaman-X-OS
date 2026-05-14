@@ -12,18 +12,43 @@ from app.mock.telemetry_generator import MockTelemetryGenerator
 from app.services.telemetry_service import TelemetryService, telemetry_to_schema
 from app.services.telemetry_source_service import TelemetrySourceService
 from app.services.mission_simulation_service import mission_simulation_service
-from app.core.enums import TelemetrySource
+from app.core.enums import MissionEventType, TelemetrySource
+from app.models.mission import MissionEvent
+from app.services.mavlink_readonly_runtime import mavlink_readonly_provider
 
 
 async def telemetry_loop(app: FastAPI) -> None:
     generator = MockTelemetryGenerator()
     service = TelemetryService()
+    source_service = TelemetrySourceService()
+    mavlink_seen = False
     while True:
         with SessionLocal() as db:
-            active = TelemetrySourceService().get_active_source(db)
-            row = mission_simulation_service.step_simulation(db)
-            if row is None and (active is None or active.source_type == TelemetrySource.MOCK.value):
-                row = service.save(db, generator.next())
+            active = source_service.get_active_source(db)
+            active_type = active.source_type if active else TelemetrySource.MOCK.value
+            row = None
+            if active_type == TelemetrySource.MOCK.value:
+                mavlink_seen = False
+                row = mission_simulation_service.step_simulation(db)
+                if row is None:
+                    row = service.save(db, generator.next())
+            elif active_type == TelemetrySource.MAVLINK_READ_ONLY.value:
+                payload_data = mavlink_readonly_provider.poll_once()
+                if payload_data is not None:
+                    row = service.save(db, payload_data)
+                    if not mavlink_seen:
+                        db.add(MissionEvent(
+                            mission_id="SYSTEM",
+                            drone_id=payload_data["drone_id"],
+                            event_type=MissionEventType.MAVLINK_TELEMETRY_RECEIVED.value,
+                            severity="INFO",
+                            message="First MAVLink read-only telemetry received after source activation.",
+                            details=f"endpoint={mavlink_readonly_provider.get_status().get('endpoint')}",
+                        ))
+                        db.commit()
+                        mavlink_seen = True
+                elif mavlink_readonly_provider.get_status().get("last_error"):
+                    source_service.set_source_error(db, TelemetrySource.MAVLINK_READ_ONLY, str(mavlink_readonly_provider.get_status().get("last_error")))
             if row is None:
                 await asyncio.sleep(1)
                 continue

@@ -8,6 +8,7 @@ from app.core.enums import TelemetrySource, TelemetrySourceStatus
 class TelemetrySourceConfigRead(BaseModel):
     id: int
     source_type: TelemetrySource
+    active_source: TelemetrySource | None = None
     status: TelemetrySourceStatus
     name: str
     host: str | None = None
